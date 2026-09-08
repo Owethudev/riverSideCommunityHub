@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: riverside-community-hub-api
+    runtime: node
+    rootDir: .
+    buildCommand: npm ci --include=dev && npm run build --workspace=@riverside/shared && npm run build --workspace=@riverside/backend
+    startCommand: npm run start --workspace=@riverside/backend
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: API_MAIL_KEY
+        sync: false
+      - key: PROMAILER_API_URL
+        value: https://api.promailer.xyz/api/v1
+      - key: MAIL_FROM
+        sync: false
