@@ -105,6 +105,27 @@ export const donationInterestSchema = z.object({
 });
 export type DonationInterest = z.infer<typeof donationInterestSchema>;
 
+export const communityEventSchema = z.object({
+  id: z.string().uuid(),
+  title: z.string(),
+  poster_url: z.string().url().nullable(),
+  starts_at: z.string().datetime(),
+  ends_at: z.string().datetime().nullable(),
+  venue: z.string(),
+  created_by: z.string().uuid(),
+  created_at: z.string().datetime(),
+});
+export type CommunityEvent = z.infer<typeof communityEventSchema>;
+
+export const createCommunityEventSchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  poster_url: z.string().url().nullable().optional(),
+  starts_at: z.string().datetime(),
+  ends_at: z.string().datetime().nullable().optional(),
+  venue: z.string().trim().min(1).max(160),
+});
+export type CreateCommunityEvent = z.infer<typeof createCommunityEventSchema>;
+
 export interface NavItem {
   label: string;
   path: string;

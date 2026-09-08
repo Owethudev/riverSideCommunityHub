@@ -11,6 +11,7 @@ import { notificationsRouter } from './routes/notifications.js';
 import { donationsRouter } from './routes/donations.js';
 import { staffDashboardRouter } from './routes/staffDashboard.js';
 import { adminRouter } from './routes/admin.js';
+import { eventsRouter } from './routes/events.js';
 
 export const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/bookings', bookingsRouter);
 app.use('/api/staff/bookings', staffBookingsRouter);
 app.use('/api/staff/dashboard', staffDashboardRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/events', eventsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/donations', donationsRouter);
 
