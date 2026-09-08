@@ -4,6 +4,10 @@ import { healthResponseSchema } from '@riverside/shared';
 import { env } from './config/env.js';
 import { profileRouter } from './routes/profile.js';
 import { emailRouter } from './routes/email.js';
+import { resourcesRouter } from './routes/resources.js';
+import { bookingsRouter } from './routes/bookings.js';
+import { staffBookingsRouter } from './routes/staffBookings.js';
+import { notificationsRouter } from './routes/notifications.js';
 
 export const app = express();
 
@@ -12,6 +16,18 @@ app.use(express.json());
 
 app.use('/api/profile', profileRouter);
 app.use('/api/email', emailRouter);
+app.use('/api/resources', resourcesRouter);
+app.use('/api/bookings', bookingsRouter);
+app.use('/api/staff/bookings', staffBookingsRouter);
+app.use('/api/notifications', notificationsRouter);
+
+app.get('/', (_request, response) => {
+  response.json({
+    service: 'riverside-community-hub-api',
+    message: 'Riverside Community Hub API is running',
+    health: '/api/health',
+  });
+});
 
 app.get('/api/health', (_request, response) => {
   const payload = healthResponseSchema.parse({
