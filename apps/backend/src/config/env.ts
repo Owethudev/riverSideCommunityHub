@@ -4,7 +4,8 @@ import { z } from 'zod';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(4000),
-  CORS_ORIGIN: z.string().default('http://localhost:5173'),
+  CORS_ORIGIN: z.string().optional(),
+  FRONTEND_URL: z.string().optional(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
@@ -12,7 +13,8 @@ const envSchema = z.object({
   PROMAILER_API_URL: z.string().url().default('https://api.promailer.xyz/api/v1'),
   MAIL_FROM: z.string().min(1).default('Riverside Community Hub <no-reply@example.com>'),
 }).superRefine((values, context) => {
-  const origins = values.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean);
+  const configuredOrigins = values.CORS_ORIGIN ?? values.FRONTEND_URL ?? 'http://localhost:5173';
+  const origins = configuredOrigins.split(',').map((origin) => origin.trim()).filter(Boolean);
   if (origins.length === 0 || origins.some((origin) => !z.string().url().safeParse(origin).success)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['CORS_ORIGIN'], message: 'Use one or more comma-separated valid URLs.' });
   }
@@ -22,4 +24,7 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse(process.env);
-export const corsOrigins = env.CORS_ORIGIN.split(',').map((origin) => origin.trim()).filter(Boolean);
+export const corsOrigins = (env.CORS_ORIGIN ?? env.FRONTEND_URL ?? 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);

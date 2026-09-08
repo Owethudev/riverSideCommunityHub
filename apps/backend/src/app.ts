@@ -15,7 +15,7 @@ import { eventsRouter } from './routes/events.js';
 
 export const app = express();
 
-app.use(cors({ origin: corsOrigins }));
+app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json());
 
 app.use('/api/profile', profileRouter);
