@@ -10,12 +10,12 @@ profileRouter.use(requireAuth);
 profileRouter.get('/', async (request, response) => {
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .select('id, full_name, role, created_at, updated_at')
+    .select('id, full_name, role, membership_started_at, membership_expires_at, created_at, updated_at')
     .eq('id', request.userId)
     .single();
 
   if (error) {
-    response.status(404).json({ error: 'Profile not found' });
+    response.status(500).json({ error: 'Unable to load profile', details: error.message });
     return;
   }
   response.json(data);
@@ -32,11 +32,11 @@ profileRouter.patch('/', async (request, response) => {
     .from('profiles')
     .update(parsed.data)
     .eq('id', request.userId)
-    .select('id, full_name, role, created_at, updated_at')
+    .select('id, full_name, role, membership_started_at, membership_expires_at, created_at, updated_at')
     .single();
 
   if (error) {
-    response.status(500).json({ error: 'Unable to update profile' });
+    response.status(500).json({ error: 'Unable to update profile', details: error.message });
     return;
   }
   response.json(data);

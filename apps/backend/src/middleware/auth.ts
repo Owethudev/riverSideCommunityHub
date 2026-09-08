@@ -15,11 +15,23 @@ export async function requireAuth(request: Request, response: Response, next: Ne
     return;
   }
 
-  const { data: profile, error: profileError } = await supabaseAdmin
+  let { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
     .select('role')
     .eq('id', data.user.id)
     .single();
+
+  if (profileError?.code === 'PGRST116') {
+    const { error: createProfileError } = await supabaseAdmin.from('profiles').upsert(
+      { id: data.user.id, full_name: data.user.user_metadata.full_name ?? null },
+      { onConflict: 'id', ignoreDuplicates: true },
+    );
+    if (!createProfileError) {
+      const retry = await supabaseAdmin.from('profiles').select('role').eq('id', data.user.id).single();
+      profile = retry.data;
+      profileError = retry.error;
+    }
+  }
 
   if (profileError || !profile) {
     response.status(403).json({ error: 'Profile is not available' });

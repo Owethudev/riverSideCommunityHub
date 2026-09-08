@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { supabaseAdmin } from '../config/supabase.js';
 
 interface SendEmailInput {
   to: string;
@@ -49,6 +50,10 @@ export async function sendEmail(input: SendEmailInput): Promise<PromailerRespons
   return body;
 }
 
+export async function sendToMany(recipients: string[], content: Pick<SendEmailInput, 'subject' | 'html' | 'text'>): Promise<void> {
+  await Promise.allSettled(recipients.map((to) => sendEmail({ to, ...content })));
+}
+
 export function welcomeEmail(fullName: string | null): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {
   const greeting = fullName ? `Hi ${fullName},` : 'Welcome,';
   const htmlGreeting = fullName ? `Hi ${escapeHtml(fullName)},` : 'Welcome,';
@@ -65,6 +70,28 @@ export function bookingStatusEmail(resourceName: string, status: string): Pick<S
     html: `<h1>Booking update</h1><p>Your booking for <strong>${resourceName}</strong> is now <strong>${status}</strong>.</p>`,
     text: `Booking update\n\nYour booking for ${resourceName} is now ${status}.`,
   };
+}
+
+export function bookingRequestEmail(resourceName: string, memberName: string | null, startsAt: string, endsAt: string): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {
+  const requester = memberName ? ` from ${escapeHtml(memberName)}` : '';
+  return {
+    subject: `New booking request: ${resourceName}`,
+    html: `<h1>New booking request</h1><p>A new request${requester} has been submitted for <strong>${escapeHtml(resourceName)}</strong>.</p><p>${escapeHtml(startsAt)} to ${escapeHtml(endsAt)}</p><p>Review it in the staff booking queue.</p>`,
+    text: `New booking request\n\nA new request${memberName ? ` from ${memberName}` : ''} has been submitted for ${resourceName}.\n${startsAt} to ${endsAt}\n\nReview it in the staff booking queue.`,
+  };
+}
+
+export async function getAuthEmail(userId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (error) return null;
+  return data.user.email ?? null;
+}
+
+export async function getRoleEmails(roles: Array<'staff' | 'admin'>): Promise<string[]> {
+  const { data: profiles, error } = await supabaseAdmin.from('profiles').select('id, role').in('role', roles);
+  if (error) return [];
+  const results = await Promise.all((profiles ?? []).map((profile) => getAuthEmail(profile.id)));
+  return results.filter((email): email is string => Boolean(email));
 }
 
 export function donationReceivedEmail(campaignName: string): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {

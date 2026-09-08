@@ -1,10 +1,12 @@
 import { NavLink, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+/* eslint-disable no-control-regex */
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
-import type { UserRole } from '@riverside/shared';
+import type { Booking, Notification, Resource } from '@riverside/shared';
 import { env } from './config/env';
+import { readApiResponse } from './lib/api';
 
 type PageKind = 'public' | 'member' | 'staff';
 
@@ -106,8 +108,21 @@ function Home() {
 }
 
 function Facilities() {
-  return <Page title="Facilities" description="Information about rooms and spaces available at the hub.">
-    <EmptyState message="Facility listings will appear here once they are configured." />
+  const { session } = useAuth();
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const options = session ? { headers: { Authorization: `Bearer ${session.access_token}` } } : undefined;
+    void fetch(`${env.VITE_API_URL}/api/resources`, options)
+      .then((response) => readApiResponse<{ items?: Resource[] }>(response))
+      .then((result) => setResources(result.items ?? []))
+      .catch((reason: Error) => setError(reason.message))
+      .finally(() => setLoading(false));
+  }, [session]);
+  return <Page title="Facilities and equipment" description="Browse bookable rooms and equipment.">
+    {loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && resources.length === 0 && <EmptyState message="No resources are currently available." />}
+    <div className="grid gap-4 md:grid-cols-2">{resources.map((resource) => <section className="rounded border border-slate-200 bg-white p-5" key={resource.id}><h2 className="text-xl font-semibold">{resource.name}</h2><p className="mt-1 text-sm text-slate-500">{resource.kind} · Capacity {resource.capacity}</p><p className="mt-3 text-slate-600">{resource.description}</p><p className="mt-3 text-sm">{resource.approval_required ? 'Staff approval required' : 'Usually approved automatically'}</p></section>)}</div>
   </Page>;
 }
 
@@ -148,28 +163,140 @@ function AuthPage({ signUp = false }: { signUp?: boolean }) {
   </Page>;
 }
 
-function MemberDashboard() { const { loading, user } = useAuth(); if (loading) return <LoadingState />; if (!user) return <Navigate to="/login" replace />; return <Page title="Member dashboard" description="A summary of your community hub activity."><p className="rounded border border-slate-200 bg-white p-6">You are signed in.</p></Page>; }
+function MemberDashboard() {
+  const { loading, user, session } = useAuth();
+  const [profile, setProfile] = useState<{ membership_expires_at: string } | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  useEffect(() => {
+    if (!session) return;
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    void Promise.all([
+      fetch(`${env.VITE_API_URL}/api/profile`, { headers }).then((response) => readApiResponse<{ membership_expires_at: string }>(response)),
+      fetch(`${env.VITE_API_URL}/api/notifications`, { headers }).then((response) => readApiResponse<{ items?: Notification[] }>(response)),
+    ]).then(([nextProfile, nextNotifications]) => { setProfile(nextProfile); setNotifications(nextNotifications.items ?? []); }).catch(() => { setProfile(null); setNotifications([]); });
+  }, [session]);
+  if (loading) return <LoadingState />;
+  if (!user) return <Navigate to="/login" replace />;
+  const daysRemaining = profile ? Math.ceil((Date.parse(profile.membership_expires_at) - Date.now()) / 86400000) : null;
+  return <Page title="Member dashboard" description="A summary of your community hub activity.">{daysRemaining !== null && daysRemaining <= 30 && <p role="alert" className="rounded border border-amber-300 bg-amber-50 p-4 text-amber-900">Your membership expires in {Math.max(daysRemaining, 0)} days.</p>}<section className="rounded border border-slate-200 bg-white p-6"><h2 className="text-xl font-semibold">Notifications</h2>{notifications.length === 0 ? <EmptyState message="You have no notifications." /> : <ul className="mt-3 space-y-3">{notifications.slice(0, 5).map((notification) => <li className="border-b border-slate-200 pb-3" key={notification.id}><strong>{notification.title}</strong><p className="text-slate-600">{notification.message}</p></li>)}</ul>}</section></Page>;
+}
 function Profile() {
   const { session, loading, user } = useAuth();
   const [fullName, setFullName] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     if (!session) return;
     void fetch(`${env.VITE_API_URL}/api/profile`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((response) => response.json() as Promise<{ full_name: string | null }>)
-      .then((profile) => setFullName(profile.full_name ?? ''));
+      .then((response) => readApiResponse<{ full_name: string | null }>(response))
+      .then((profile) => setFullName(profile.full_name ?? ''))
+      .catch((reason: Error) => setError(reason.message));
   }, [session]);
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!session) return;
     const response = await fetch(`${env.VITE_API_URL}/api/profile`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ full_name: fullName }) });
-    setMessage(response.ok ? 'Profile saved.' : 'Unable to save profile.');
+    if (!response.ok) {
+      const body = await response.json() as { error?: string };
+      setError(body.error ?? 'Unable to save profile.');
+      setMessage(null);
+      return;
+    }
+    setError(null);
+    setMessage('Profile saved.');
   };
   if (loading) return <LoadingState />;
   if (!user) return <Navigate to="/login" replace />;
-  return <Page title="My profile" description="Review and update your account details."><FormCard title="Profile details" onSubmit={save}><label className="block"><span className="font-medium">Full name</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="text" /></label>{message && <p role="status">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Save changes</button></FormCard></Page>;
+  return <Page title="My profile" description="Review and update your account details."><FormCard title="Profile details" onSubmit={save}>{error && <ErrorState message={error} />}<label className="block"><span className="font-medium">Full name</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="text" /></label>{message && <p role="status">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Save changes</button></FormCard></Page>;
 }
-function Bookings() { const { loading, user } = useAuth(); if (loading) return <LoadingState />; if (!user) return <Navigate to="/login" replace />; return <Page title="My bookings" description="View your current and past facility bookings."><EmptyState message="You do not have any bookings yet." /></Page>; }
+function Bookings() {
+  const { loading, user, session } = useAuth();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [resourceId, setResourceId] = useState('');
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [notes, setNotes] = useState('');
+  const [availability, setAvailability] = useState<Array<{ starts_at: string; ends_at: string; status: string }>>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => {
+    if (!session) return;
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    void Promise.all([
+      fetch(`${env.VITE_API_URL}/api/bookings`, { headers }),
+      fetch(`${env.VITE_API_URL}/api/resources`, { headers }),
+    ])
+      .then(async ([bookingResponse, resourceResponse]) => {
+        const bookingResult = await bookingResponse.json() as { items?: Booking[]; error?: string };
+        const resourceResult = await resourceResponse.json() as { items?: Resource[]; error?: string };
+        if (!bookingResponse.ok) throw new Error(bookingResult.error ?? 'Unable to load bookings');
+        if (!resourceResponse.ok) throw new Error(resourceResult.error ?? 'Unable to load resources');
+        setBookings(bookingResult.items ?? []);
+        setResources(resourceResult.items ?? []);
+      })
+      .catch((reason: Error) => {
+        setBookings([]);
+        setResources([]);
+        setError(reason.message);
+      });
+  };
+  useEffect(load, [session]);
+  useEffect(() => {
+    if (!session || !resourceId || !startsAt || !endsAt) { setAvailability([]); return; }
+    const start = new Date(startsAt).toISOString();
+    const end = new Date(endsAt).toISOString();
+    void fetch(`${env.VITE_API_URL}/api/resources/${resourceId}/availability?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((response) => readApiResponse<{ bookings?: Array<{ starts_at: string; ends_at: string; status: string }> }>(response))
+      .then((result) => setAvailability(result.bookings ?? []))
+      .catch(() => setAvailability([]));
+  }, [session, resourceId, startsAt, endsAt]);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!session) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const start = new Date(startsAt);
+      const end = new Date(endsAt);
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+        setError('Choose a date and time during opening hours: Monday-Friday 06:00-21:00, Saturday 08:00-18:00, or Sunday 09:00-15:00. Bookings must be 30 minutes to 2 hours.');
+        return;
+      }
+      const duration = end.getTime() - start.getTime();
+      if (duration < 30 * 60 * 1000 || duration > 2 * 60 * 60 * 1000) {
+        setError('Booking duration must be at least 30 minutes and no more than 2 hours.');
+        return;
+      }
+      if (start.toDateString() !== end.toDateString()) {
+        setError('Bookings must start and end on the same date during opening hours: Monday-Friday 06:00-21:00, Saturday 08:00-18:00, or Sunday 09:00-15:00.');
+        return;
+      }
+      const day = start.getDay();
+      const openingHour = day === 0 ? 9 : day === 6 ? 8 : 6;
+      const closingHour = day === 0 ? 15 : day === 6 ? 18 : 21;
+      if (start.getHours() < openingHour || end.getHours() > closingHour || (end.getHours() === closingHour && end.getMinutes() > 0) || (start.getHours() === closingHour && start.getMinutes() > 0)) {
+        setError('Choose a time during opening hours: Monday-Friday 06:00-21:00, Saturday 08:00-18:00, or Sunday 09:00-15:00.');
+        return;
+      }
+      const response = await fetch(`${env.VITE_API_URL}/api/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ resource_id: resourceId, starts_at: start.toISOString(), ends_at: end.toISOString(), notes: notes || null }) });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) {
+        setError(body.error ?? 'Unable to create booking');
+        return;
+      }
+      setMessage('Booking request submitted.');
+      setNotes('');
+      load();
+    } catch {
+      setError('Unable to reach the booking service. Please try again.');
+    }
+  };
+  const cancel = async (id: string) => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/bookings/${id}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to cancel booking'); return; } setMessage('Booking cancelled.'); load(); };
+  if (loading) return <LoadingState />;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Page title="My bookings" description="Request a resource and manage your pending bookings.">{error && <ErrorState message={error} />}<FormCard title="Request a booking" onSubmit={submit}><label className="block"><span className="font-medium">Resource</span><select required value={resourceId} onChange={(event) => setResourceId(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2"><option value="">Select a resource</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{availability.length > 0 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">This resource has an active booking in the selected range.</p>}{availability.length === 0 && resourceId && startsAt && endsAt && <p className="rounded border border-green-200 bg-green-50 p-3 text-green-800">No active booking is shown for this range.</p>}<label className="block"><span className="font-medium">Notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit request</button></FormCard><section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
+}
 
 const staffPages: Record<string, { title: string; description: string; message: string }> = {
   '/staff/dashboard': { title: 'Staff and admin dashboard', description: 'An overview of hub activity and tasks.', message: 'Dashboard metrics will appear here.' },
@@ -187,21 +314,24 @@ function StaffPage({ path }: { path: string }) {
   if (!user) return <Navigate to="/login" replace />;
   if (!role || (role !== 'staff' && role !== 'admin')) return <Navigate to="/member/dashboard" replace />;
   if (!page) return <ErrorState message="Staff page not found." />;
+  if (path === '/staff/booking-requests') return <StaffBookingQueue />;
   return <Page title={page.title} description={page.description}><section className="overflow-x-auto rounded border border-slate-200 bg-white"><table className="w-full min-w-[500px] text-left text-sm"><caption className="p-4 text-left font-semibold">Current records</caption><thead className="border-y border-slate-200 bg-slate-50"><tr><th className="p-4" scope="col">Name</th><th className="p-4" scope="col">Status</th><th className="p-4" scope="col">Action</th></tr></thead><tbody><tr><td className="p-4 text-slate-600" colSpan={3}>{page.message}</td></tr></tbody></table></section></Page>;
+}
+
+function StaffBookingQueue() {
+  const { session } = useAuth();
+  const [items, setItems] = useState<Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }>>([]);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => { if (!session) return; void fetch(`${env.VITE_API_URL}/api/staff/bookings`, { headers: { Authorization: `Bearer ${session.access_token}` } }).then((response) => readApiResponse<{ items?: Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }> }>(response)).then((result) => setItems(result.items ?? [])).catch((reason: Error) => { setItems([]); setError(reason.message); }); };
+  useEffect(load, [session]);
+  const decide = async (id: string, status: 'approved' | 'declined') => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/staff/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ status }) }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to update booking'); return; } load(); };
+  return <Page title="Booking requests" description="Approve or reject pending member booking requests.">{error && <ErrorState message={error} />}{items.length === 0 ? <EmptyState message="There are no pending booking requests." /> : <div className="space-y-3">{items.map((item) => <article className="rounded border border-slate-200 bg-white p-4" key={item.id}><h2 className="font-semibold">{item.resources?.name ?? 'Resource'}</h2><p>Requested by {item.profiles?.full_name ?? 'Member'}</p><p>{new Date(item.starts_at).toLocaleString()} to {new Date(item.ends_at).toLocaleString()}</p><div className="mt-3 flex gap-2"><button className="rounded bg-green-700 px-3 py-1 font-semibold text-white" type="button" onClick={() => void decide(item.id, 'approved')}>Approve</button><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void decide(item.id, 'declined')}>Reject</button></div></article>)}</div>}</Page>;
 }
 
 function FormCard({ title, children, onSubmit }: { title: string; children: ReactNode; onSubmit?: (event: FormEvent) => void }) { return <form className="max-w-lg space-y-4 rounded border border-slate-200 bg-white p-6" onSubmit={onSubmit ?? ((event) => event.preventDefault())}><h2 className="text-xl font-semibold">{title}</h2>{children}</form>; }
 function LoadingState() { return <p role="status" className="rounded border border-slate-200 bg-white p-6 text-slate-600">Loading...</p>; }
 function EmptyState({ message }: { message: string }) { return <p className="rounded border border-dashed border-slate-300 bg-white p-6 text-slate-600">{message}</p>; }
 function ErrorState({ message }: { message: string }) { return <p role="alert" className="rounded border border-red-200 bg-red-50 p-6 text-red-800">{message}</p>; }
-
-function ProtectedRoute({ roles, children }: { roles?: UserRole[]; children: ReactNode }) {
-  const { loading, user, role } = useAuth();
-  if (loading) return <LoadingState />;
-  if (!user) return <Navigate to="/login" replace />;
-  if (roles && (!role || (!roles.includes(role) && role !== 'admin'))) return <Navigate to="/member/dashboard" replace />;
-  return <>{children}</>;
-}
 
 export function App() {
   return <Routes><Route element={<Layout />}><Route index element={<Home />} /><Route path="facilities" element={<Facilities />} /><Route path="donation-drive" element={<DonationDrive />} /><Route path="login" element={<AuthPage />} /><Route path="sign-up" element={<AuthPage signUp />} /><Route path="member/dashboard" element={<MemberDashboard />} /><Route path="member/profile" element={<Profile />} /><Route path="member/bookings" element={<Bookings />} />{Object.keys(staffPages).map((path) => <Route key={path} path={path.replace(/^/, '').replace(/^\//, '')} element={<StaffPage path={path} />} />)}<Route path="*" element={<Navigate to="/" replace />} /></Route></Routes>;

@@ -17,7 +17,7 @@ npm run build
 npm run dev
 ```
 
-Replace the Supabase placeholders in both `.env` files with the project URL and anon key. Keep `SUPABASE_SERVICE_ROLE_KEY` and `API_MAIL_KEY` in the backend `.env` only. Apply the versioned database migrations with `supabase db push` before using signup, profile, or email routes.
+Replace the Supabase placeholders in both `.env` files with the project URL and anon key. Keep `SUPABASE_SERVICE_ROLE_KEY` and `API_MAIL_KEY` in the backend `.env` only. Apply the versioned database migrations with `supabase db push` before using signup, profile, email, resource, or booking routes. The booking workflow migration is `20260908130000_booking_workflows.sql`.
 
 The frontend runs at `http://localhost:5173` and the API runs at `http://localhost:4000`. Check API readiness at `http://localhost:4000/api/health`.
 
