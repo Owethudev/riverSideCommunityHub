@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "jsx": "react-jsx", "lib": ["ES2022", "DOM", "DOM.Iterable"], "noEmit": true, "useDefineForClassFields": true },
+  "compilerOptions": { "jsx": "react-jsx", "lib": ["ES2022", "DOM", "DOM.Iterable"], "noEmit": true, "useDefineForClassFields": true, "baseUrl": ".", "paths": { "@riverside/shared": ["../../packages/shared/src/index.ts"] } },
   "include": ["src", "vite.config.ts"]
 }

@@ -50,13 +50,13 @@ Configure Supabase Auth URL settings before testing production email redirects. 
 
 Create a Vercel project connected to this repository:
 
-- Root Directory: `apps/frontend`
+- Root Directory: repository root (`.`)
 - Framework: Vite
 - Build Command: `npm run build`
 - Output Directory: `dist`
 - Install Command: `npm install`
 - Add `VITE_API_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
-- `apps/frontend/vercel.json` provides the SPA rewrite for React Router refreshes.
+- `vercel.json` builds the shared package before the frontend and provides the SPA rewrite for React Router refreshes.
 
 ### Render backend
 
