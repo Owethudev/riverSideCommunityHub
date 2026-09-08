@@ -38,7 +38,7 @@ staffBookingsRouter.patch('/:bookingId', async (request, response) => {
   }
   const { data, error } = await supabaseAdmin
     .from('bookings')
-    .update({ status: parsed.data.status, cancellation_reason: parsed.data.reason ?? null, reviewed_by: request.userId })
+    .update({ status: parsed.data.status, cancellation_reason: parsed.data.reason ?? null, reviewed_by: request.userId, reviewed_at: new Date().toISOString() })
     .eq('id', request.params.bookingId)
     .eq('status', 'pending')
     .select('id, member_id, resource_id, starts_at, ends_at, status, notes, cancellation_reason')

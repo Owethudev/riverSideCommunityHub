@@ -7,6 +7,7 @@ import { useAuth } from './auth/AuthContext';
 import type { Booking, Notification, Resource } from '@riverside/shared';
 import { env } from './config/env';
 import { readApiResponse } from './lib/api';
+import { AdminDonationInterests, AdminMembers } from './admin/AdminLists';
 
 type PageKind = 'public' | 'member' | 'staff';
 
@@ -24,16 +25,21 @@ const navigation: Record<PageKind, { label: string; path: string }[]> = {
   staff: [
     { label: 'Dashboard', path: '/staff/dashboard' },
     { label: 'Booking Requests', path: '/staff/booking-requests' },
-    { label: 'Members', path: '/staff/members' },
-    { label: 'Donations', path: '/staff/donations' },
-    { label: 'Resources', path: '/staff/resources' },
-    { label: 'Programmes', path: '/staff/programmes' },
   ],
 };
 
+const adminNavigation = [
+  { label: 'Dashboard', path: '/staff/dashboard' },
+  { label: 'Booking Requests', path: '/staff/booking-requests' },
+  { label: 'Members', path: '/staff/members' },
+  { label: 'Donations', path: '/staff/donations' },
+  { label: 'Resources', path: '/staff/resources' },
+  { label: 'Programmes', path: '/staff/programmes' },
+];
+
 function Layout() {
   const { user, role, signOut } = useAuth();
-  const canAccessStaffNavigation = role === 'staff' || role === 'admin';
+  const canAccessStaffNavigation = role === 'staff';
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
@@ -51,6 +57,7 @@ function Layout() {
           <NavigationGroup title="Public" items={navigation.public} />
           <NavigationGroup title="Member" items={navigation.member} />
           {canAccessStaffNavigation && <NavigationGroup title="Staff and admin" items={navigation.staff} />}
+          {role === 'admin' && <NavigationGroup title="Admin" items={adminNavigation} />}
         </aside>
         <main id="main-content" className="min-w-0">
           <Outlet />
@@ -127,8 +134,26 @@ function Facilities() {
 }
 
 function DonationDrive() {
+  const [email, setEmail] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    try {
+      const response = await fetch(`${env.VITE_API_URL}/api/donations/interest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      await readApiResponse<{ submitted: boolean }>(response);
+      setSubmitted(true);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to submit your interest.');
+    }
+  };
   return <Page title="Donation Drive" description="Support local initiatives by contributing requested goods or funds.">
-    <FormCard title="Register your interest"><label className="block"><span className="font-medium">Email address</span><input className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label><button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="button">Submit interest</button></FormCard>
+    {submitted ? <p role="status" className="rounded border border-green-200 bg-green-50 p-6 text-green-800">Thank you. Your interest has been sent to the Riverside Community Hub team.</p> : <FormCard title="Register your interest" onSubmit={submit}><label className="block"><span className="font-medium">Email address</span><input required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label>{error && <ErrorState message={error} />}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit interest</button></FormCard>}
   </Page>;
 }
 
@@ -209,7 +234,7 @@ function Profile() {
   if (!user) return <Navigate to="/login" replace />;
   return <Page title="My profile" description="Review and update your account details."><FormCard title="Profile details" onSubmit={save}>{error && <ErrorState message={error} />}<label className="block"><span className="font-medium">Full name</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="text" /></label>{message && <p role="status">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Save changes</button></FormCard></Page>;
 }
-function Bookings() {
+function Bookings({ create = false }: { create?: boolean }) {
   const { loading, user, session } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -220,6 +245,7 @@ function Bookings() {
   const [availability, setAvailability] = useState<Array<{ starts_at: string; ends_at: string; status: string }>>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [formMinimized, setFormMinimized] = useState(false);
   const load = () => {
     if (!session) return;
     const headers = { Authorization: `Bearer ${session.access_token}` };
@@ -295,10 +321,12 @@ function Bookings() {
   const cancel = async (id: string) => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/bookings/${id}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to cancel booking'); return; } setMessage('Booking cancelled.'); load(); };
   if (loading) return <LoadingState />;
   if (!user) return <Navigate to="/login" replace />;
-  return <Page title="My bookings" description="Request a resource and manage your pending bookings.">{error && <ErrorState message={error} />}<FormCard title="Request a booking" onSubmit={submit}><label className="block"><span className="font-medium">Resource</span><select required value={resourceId} onChange={(event) => setResourceId(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2"><option value="">Select a resource</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{availability.length > 0 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">This resource has an active booking in the selected range.</p>}{availability.length === 0 && resourceId && startsAt && endsAt && <p className="rounded border border-green-200 bg-green-50 p-3 text-green-800">No active booking is shown for this range.</p>}<label className="block"><span className="font-medium">Notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit request</button></FormCard><section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
+  if (!create) return <Page title="My bookings" description="Review your current and past bookings."><div className="flex justify-end"><NavLink className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" to="/member/bookings/new">Create a booking</NavLink></div>{error && <ErrorState message={error} />}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
+  return <Page title="My bookings" description="Request a resource and manage your pending bookings.">{error && <ErrorState message={error} />}{formMinimized ? <button className="rounded border border-slate-400 px-4 py-2" type="button" onClick={() => setFormMinimized(false)}>Restore booking form</button> : <FormCard title="Request a booking" onSubmit={submit}><div className="flex justify-end"><button className="text-sm underline" type="button" onClick={() => setFormMinimized(true)}>Minimize form</button></div><label className="block"><span className="font-medium">Resource</span><select required value={resourceId} onChange={(event) => setResourceId(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2"><option value="">Select a resource</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{availability.length > 0 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">This resource has an active booking in the selected range.</p>}{availability.length === 0 && resourceId && startsAt && endsAt && <p className="rounded border border-green-200 bg-green-50 p-3 text-green-800">No active booking is shown for this range.</p>}<label className="block"><span className="font-medium">Notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit request</button></FormCard>}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
 }
 
 const staffPages: Record<string, { title: string; description: string; message: string }> = {
+  '/member/bookings/new': { title: 'Create booking', description: 'Request a resource booking.', message: '' },
   '/staff/dashboard': { title: 'Staff and admin dashboard', description: 'An overview of hub activity and tasks.', message: 'Dashboard metrics will appear here.' },
   '/staff/booking-requests': { title: 'Booking requests', description: 'Review and manage member booking requests.', message: 'There are no booking requests to review.' },
   '/staff/members': { title: 'Members', description: 'View and manage registered community members.', message: 'Member records will appear here.' },
@@ -307,14 +335,21 @@ const staffPages: Record<string, { title: string; description: string; message: 
   '/staff/programmes': { title: 'Programmes', description: 'Manage community programmes and events.', message: 'Programme records will appear here.' },
 };
 
+const allowedStaffPaths = new Set(['/staff/dashboard', '/staff/booking-requests']);
+
 function StaffPage({ path }: { path: string }) {
   const { loading, user, role } = useAuth();
   const page = staffPages[path];
+  if (path === '/member/bookings/new') return <Bookings create />;
   if (loading) return <LoadingState />;
   if (!user) return <Navigate to="/login" replace />;
   if (!role || (role !== 'staff' && role !== 'admin')) return <Navigate to="/member/dashboard" replace />;
+  if (role === 'staff' && !allowedStaffPaths.has(path)) return <Navigate to="/staff/dashboard" replace />;
   if (!page) return <ErrorState message="Staff page not found." />;
   if (path === '/staff/booking-requests') return <StaffBookingQueue />;
+  if (path === '/staff/dashboard') return <StaffDashboard />;
+  if (path === '/staff/members') return <AdminMembers />;
+  if (path === '/staff/donations') return <AdminDonationInterests />;
   return <Page title={page.title} description={page.description}><section className="overflow-x-auto rounded border border-slate-200 bg-white"><table className="w-full min-w-[500px] text-left text-sm"><caption className="p-4 text-left font-semibold">Current records</caption><thead className="border-y border-slate-200 bg-slate-50"><tr><th className="p-4" scope="col">Name</th><th className="p-4" scope="col">Status</th><th className="p-4" scope="col">Action</th></tr></thead><tbody><tr><td className="p-4 text-slate-600" colSpan={3}>{page.message}</td></tr></tbody></table></section></Page>;
 }
 
@@ -326,6 +361,24 @@ function StaffBookingQueue() {
   useEffect(load, [session]);
   const decide = async (id: string, status: 'approved' | 'declined') => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/staff/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ status }) }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to update booking'); return; } load(); };
   return <Page title="Booking requests" description="Approve or reject pending member booking requests.">{error && <ErrorState message={error} />}{items.length === 0 ? <EmptyState message="There are no pending booking requests." /> : <div className="space-y-3">{items.map((item) => <article className="rounded border border-slate-200 bg-white p-4" key={item.id}><h2 className="font-semibold">{item.resources?.name ?? 'Resource'}</h2><p>Requested by {item.profiles?.full_name ?? 'Member'}</p><p>{new Date(item.starts_at).toLocaleString()} to {new Date(item.ends_at).toLocaleString()}</p><div className="mt-3 flex gap-2"><button className="rounded bg-green-700 px-3 py-1 font-semibold text-white" type="button" onClick={() => void decide(item.id, 'approved')}>Approve</button><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void decide(item.id, 'declined')}>Reject</button></div></article>)}</div>}</Page>;
+}
+
+function StaffDashboard() {
+  const { session } = useAuth();
+  const [items, setItems] = useState<Array<Booking & { reviewed_by?: string; reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>>([]);
+  const [showMore, setShowMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const load = (pageSize: number) => {
+    if (!session) return;
+    void fetch(`${env.VITE_API_URL}/api/staff/dashboard/booking-decisions?page=1&page_size=${pageSize}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
+      .then((response) => readApiResponse<{ items?: Array<Booking & { reviewed_by?: string; reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>; has_more?: boolean }>(response))
+      .then((result) => { setItems(result.items ?? []); setHasMore(result.has_more ?? false); })
+      .catch((reason: Error) => { setItems([]); setError(reason.message); });
+  };
+  useEffect(() => load(5), [session]);
+  const toggleMore = () => { const next = !showMore; setShowMore(next); load(next ? 50 : 5); };
+  return <Page title="Staff dashboard" description="Recent booking decisions made by staff and administrators.">{error && <ErrorState message={error} />}<section className="rounded border border-slate-200 bg-white p-5"><h2 className="text-xl font-semibold">Booking decisions</h2>{items.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <div className="mt-4 space-y-3">{items.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div>}{(hasMore || showMore) && <button className="mt-4 rounded border border-slate-400 px-3 py-1" type="button" onClick={toggleMore}>{showMore ? 'Show less' : 'Show more'}</button>}</section></Page>;
 }
 
 function FormCard({ title, children, onSubmit }: { title: string; children: ReactNode; onSubmit?: (event: FormEvent) => void }) { return <form className="max-w-lg space-y-4 rounded border border-slate-200 bg-white p-6" onSubmit={onSubmit ?? ((event) => event.preventDefault())}><h2 className="text-xl font-semibold">{title}</h2>{children}</form>; }

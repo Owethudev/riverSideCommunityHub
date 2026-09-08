@@ -50,8 +50,13 @@ export async function sendEmail(input: SendEmailInput): Promise<PromailerRespons
   return body;
 }
 
-export async function sendToMany(recipients: string[], content: Pick<SendEmailInput, 'subject' | 'html' | 'text'>): Promise<void> {
-  await Promise.allSettled(recipients.map((to) => sendEmail({ to, ...content })));
+export async function sendToMany(recipients: string[], content: Pick<SendEmailInput, 'subject' | 'html' | 'text'>): Promise<{ sent: number; failed: number }> {
+  if (!env.API_MAIL_KEY) throw new EmailConfigurationError();
+  const results = await Promise.allSettled(recipients.map((to) => sendEmail({ to, ...content })));
+  return {
+    sent: results.filter((result) => result.status === 'fulfilled').length,
+    failed: results.filter((result) => result.status === 'rejected').length,
+  };
 }
 
 export function welcomeEmail(fullName: string | null): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {
@@ -99,5 +104,13 @@ export function donationReceivedEmail(campaignName: string): Pick<SendEmailInput
     subject: `Donation received: ${campaignName}`,
     html: `<h1>Thank you for your donation</h1><p>We received your contribution to <strong>${campaignName}</strong>.</p>`,
     text: `Thank you for your donation\n\nWe received your contribution to ${campaignName}.`,
+  };
+}
+
+export function donationInterestEmail(email: string): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {
+  return {
+    subject: 'New donation drive interest',
+    html: `<h1>New donation drive interest</h1><p><strong>${escapeHtml(email)}</strong> has registered interest in the Riverside Community Hub donation drive.</p>`,
+    text: `New donation drive interest\n\n${email} has registered interest in the Riverside Community Hub donation drive.`,
   };
 }

@@ -34,4 +34,6 @@ Run focused checks with `npm run typecheck`, `npm run lint`, or the full `npm ru
 
 Supabase clients, Auth session handling, protected profile routes, versioned SQL migrations, seeds, RLS policies, and Promailer email delivery are included. See [docs/schema.md](docs/schema.md), [docs/permissions.md](docs/permissions.md), [docs/authentication-flow.md](docs/authentication-flow.md), and [docs/email-delivery.md](docs/email-delivery.md).
 
+Apply `supabase/migrations/20260908141000_admin_lists.sql` after the booking migrations to enable persisted donation-drive interests and admin lists.
+
 For development test users, follow [docs/test-accounts.md](docs/test-accounts.md) and run [supabase/seed/test-roles.sql](supabase/seed/test-roles.sql) after creating the three Auth accounts.

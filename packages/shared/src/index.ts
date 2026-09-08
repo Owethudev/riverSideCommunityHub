@@ -100,6 +100,11 @@ export const authCredentialsSchema = z.object({
 });
 export type AuthCredentials = z.infer<typeof authCredentialsSchema>;
 
+export const donationInterestSchema = z.object({
+  email: z.string().email(),
+});
+export type DonationInterest = z.infer<typeof donationInterestSchema>;
+
 export interface NavItem {
   label: string;
   path: string;
