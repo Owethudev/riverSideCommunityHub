@@ -36,4 +36,8 @@ Supabase clients, Auth session handling, protected profile routes, versioned SQL
 
 Apply `supabase/migrations/20260908141000_admin_lists.sql` after the booking migrations to enable persisted donation-drive interests and admin lists.
 
+Apply `supabase/migrations/20260908142000_community_events.sql` to enable upcoming event posts. Staff and admins create events from the staff dashboard; the public home page displays future events with their poster, title, date/time, and venue.
+
+Apply `supabase/migrations/20260908143000_event_posters_storage.sql` to create the public `event-posters` Storage bucket. Staff/admin users can select an image from their device; uploads are limited to 5 MB and stored in their own user folder.
+
 For development test users, follow [docs/test-accounts.md](docs/test-accounts.md) and run [supabase/seed/test-roles.sql](supabase/seed/test-roles.sql) after creating the three Auth accounts.
