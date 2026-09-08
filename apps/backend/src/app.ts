@@ -8,6 +8,9 @@ import { resourcesRouter } from './routes/resources.js';
 import { bookingsRouter } from './routes/bookings.js';
 import { staffBookingsRouter } from './routes/staffBookings.js';
 import { notificationsRouter } from './routes/notifications.js';
+import { donationsRouter } from './routes/donations.js';
+import { staffDashboardRouter } from './routes/staffDashboard.js';
+import { adminRouter } from './routes/admin.js';
 
 export const app = express();
 
@@ -19,7 +22,10 @@ app.use('/api/email', emailRouter);
 app.use('/api/resources', resourcesRouter);
 app.use('/api/bookings', bookingsRouter);
 app.use('/api/staff/bookings', staffBookingsRouter);
+app.use('/api/staff/dashboard', staffDashboardRouter);
+app.use('/api/admin', adminRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/donations', donationsRouter);
 
 app.get('/', (_request, response) => {
   response.json({
