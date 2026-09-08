@@ -4,10 +4,11 @@ import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './auth/AuthContext';
-import type { Booking, Notification, Resource } from '@riverside/shared';
+import type { Booking, CommunityEvent, Notification, Resource } from '@riverside/shared';
 import { env } from './config/env';
 import { readApiResponse } from './lib/api';
 import { AdminDonationInterests, AdminMembers } from './admin/AdminLists';
+import { supabase } from './lib/supabase';
 
 type PageKind = 'public' | 'member' | 'staff';
 
@@ -33,8 +34,6 @@ const adminNavigation = [
   { label: 'Booking Requests', path: '/staff/booking-requests' },
   { label: 'Members', path: '/staff/members' },
   { label: 'Donations', path: '/staff/donations' },
-  { label: 'Resources', path: '/staff/resources' },
-  { label: 'Programmes', path: '/staff/programmes' },
 ];
 
 function Layout() {
@@ -105,12 +104,20 @@ function Page({ title, description, children }: { title: string; description?: s
 }
 
 function Home() {
+  const [events, setEvents] = useState<CommunityEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void fetch(`${env.VITE_API_URL}/api/events`)
+      .then((response) => readApiResponse<{ items?: CommunityEvent[] }>(response))
+      .then((result) => setEvents(result.items ?? []))
+      .catch((reason: Error) => setError(reason.message));
+  }, []);
   return <Page title="Welcome to Riverside Community Hub" description="A shared space for local people, groups, and community programmes.">
     <section className="rounded border border-slate-200 bg-white p-6">
       <h2 className="text-xl font-semibold">Get involved</h2>
       <p className="mt-2 text-slate-600">Explore facilities, make a donation, or create an account to manage bookings.</p>
     </section>
-    <ErrorState message="Connected services are not available in this initial skeleton." />
+    <section><h2 className="text-2xl font-semibold">Upcoming community events</h2>{error && <ErrorState message={error} />}{!error && events.length === 0 && <EmptyState message="No upcoming events have been posted yet." />}<div className="mt-4 grid gap-4 md:grid-cols-2">{events.map((event) => <article className="overflow-hidden rounded border border-slate-200 bg-white" key={event.id}>{event.poster_url && <img className="h-40 w-full object-cover" src={event.poster_url} alt={`Poster for ${event.title}`} />}<div className="p-5"><h3 className="text-xl font-semibold">{event.title}</h3><p className="mt-2">{new Date(event.starts_at).toLocaleString()}</p><p className="text-slate-600">{event.venue}</p></div></article>)}</div></section>
   </Page>;
 }
 
@@ -331,8 +338,6 @@ const staffPages: Record<string, { title: string; description: string; message: 
   '/staff/booking-requests': { title: 'Booking requests', description: 'Review and manage member booking requests.', message: 'There are no booking requests to review.' },
   '/staff/members': { title: 'Members', description: 'View and manage registered community members.', message: 'Member records will appear here.' },
   '/staff/donations': { title: 'Donations', description: 'Track donation drive activity.', message: 'Donation records will appear here.' },
-  '/staff/resources': { title: 'Resources', description: 'Manage shared hub resources.', message: 'Resource records will appear here.' },
-  '/staff/programmes': { title: 'Programmes', description: 'Manage community programmes and events.', message: 'Programme records will appear here.' },
 };
 
 const allowedStaffPaths = new Set(['/staff/dashboard', '/staff/booking-requests']);
@@ -378,7 +383,41 @@ function StaffDashboard() {
   };
   useEffect(() => load(5), [session]);
   const toggleMore = () => { const next = !showMore; setShowMore(next); load(next ? 50 : 5); };
-  return <Page title="Staff dashboard" description="Recent booking decisions made by staff and administrators.">{error && <ErrorState message={error} />}<section className="rounded border border-slate-200 bg-white p-5"><h2 className="text-xl font-semibold">Booking decisions</h2>{items.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <div className="mt-4 space-y-3">{items.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div>}{(hasMore || showMore) && <button className="mt-4 rounded border border-slate-400 px-3 py-1" type="button" onClick={toggleMore}>{showMore ? 'Show less' : 'Show more'}</button>}</section></Page>;
+  return <Page title="Staff dashboard" description="Recent booking decisions made by staff and administrators.">{error && <ErrorState message={error} />}<EventForm /><section className="rounded border border-slate-200 bg-white p-5"><h2 className="text-xl font-semibold">Booking decisions</h2>{items.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <div className="mt-4 space-y-3">{items.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div>}{(hasMore || showMore) && <button className="mt-4 rounded border border-slate-400 px-3 py-1" type="button" onClick={toggleMore}>{showMore ? 'Show less' : 'Show more'}</button>}</section></Page>;
+}
+
+function EventForm() {
+  const { session } = useAuth();
+  const [title, setTitle] = useState('');
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [startsAt, setStartsAt] = useState('');
+  const [endsAt, setEndsAt] = useState('');
+  const [venue, setVenue] = useState('');
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!session) return;
+    setError(null);
+    setMessage(null);
+    let posterUrl: string | null = null;
+    if (posterFile) {
+      if (!posterFile.type.startsWith('image/') || posterFile.size > 5 * 1024 * 1024) {
+        setError('Choose an image file smaller than 5 MB.');
+        return;
+      }
+      const extension = posterFile.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+      const path = `${session.user.id}/${crypto.randomUUID()}.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('event-posters').upload(path, posterFile, { contentType: posterFile.type, upsert: false });
+      if (uploadError) { setError(`Unable to upload poster image: ${uploadError.message}`); return; }
+      posterUrl = supabase.storage.from('event-posters').getPublicUrl(path).data.publicUrl;
+    }
+    const response = await fetch(`${env.VITE_API_URL}/api/events`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ title, poster_url: posterUrl, starts_at: new Date(startsAt).toISOString(), ends_at: endsAt ? new Date(endsAt).toISOString() : null, venue }) });
+    const body = await response.json() as { error?: string };
+    if (!response.ok) { setError(body.error ?? 'Unable to create event.'); return; }
+    setTitle(''); setPosterFile(null); setStartsAt(''); setEndsAt(''); setVenue(''); setMessage('Event posted successfully.');
+  };
+  return <FormCard title="Post a community event" onSubmit={submit}><label className="block"><span className="font-medium">Event name</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Poster image</span><input accept="image/*" type="file" onChange={(event) => setPosterFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends (optional)</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Venue</span><input required value={venue} onChange={(event) => setVenue(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{error && <ErrorState message={error} />}{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Post event</button></FormCard>;
 }
 
 function FormCard({ title, children, onSubmit }: { title: string; children: ReactNode; onSubmit?: (event: FormEvent) => void }) { return <form className="max-w-lg space-y-4 rounded border border-slate-200 bg-white p-6" onSubmit={onSubmit ?? ((event) => event.preventDefault())}><h2 className="text-xl font-semibold">{title}</h2>{children}</form>; }

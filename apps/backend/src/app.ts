@@ -1,7 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import { healthResponseSchema } from '@riverside/shared';
-import { env } from './config/env.js';
+import { corsOrigins } from './config/env.js';
 import { profileRouter } from './routes/profile.js';
 import { emailRouter } from './routes/email.js';
 import { resourcesRouter } from './routes/resources.js';
@@ -11,10 +11,11 @@ import { notificationsRouter } from './routes/notifications.js';
 import { donationsRouter } from './routes/donations.js';
 import { staffDashboardRouter } from './routes/staffDashboard.js';
 import { adminRouter } from './routes/admin.js';
+import { eventsRouter } from './routes/events.js';
 
 export const app = express();
 
-app.use(cors({ origin: env.CORS_ORIGIN }));
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 
 app.use('/api/profile', profileRouter);
@@ -24,6 +25,7 @@ app.use('/api/bookings', bookingsRouter);
 app.use('/api/staff/bookings', staffBookingsRouter);
 app.use('/api/staff/dashboard', staffDashboardRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/events', eventsRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/donations', donationsRouter);
 
