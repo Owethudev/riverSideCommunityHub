@@ -18,6 +18,7 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const pendingWelcomeKey = 'riverside.pendingWelcomeEmail';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -64,6 +65,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, [session]);
 
+  useEffect(() => {
+    if (!session || window.localStorage.getItem(pendingWelcomeKey) !== 'true') return;
+    window.localStorage.removeItem(pendingWelcomeKey);
+    void fetch(`${env.VITE_API_URL}/api/email/welcome`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+  }, [session]);
+
   const signUp = async (email: string, password: string, fullName: string) => {
     setError(null);
     const { data, error: signUpError } = await supabase.auth.signUp({
@@ -75,21 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(signUpError.message);
       throw signUpError;
     }
+    window.localStorage.setItem(pendingWelcomeKey, 'true');
+    if (data.session) {
+      window.localStorage.removeItem(pendingWelcomeKey);
+      await fetch(`${env.VITE_API_URL}/api/email/welcome`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+    }
     return { needsEmailConfirmation: !data.session };
   };
 
   const signIn = async (email: string, password: string) => {
     setError(null);
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
     if (signInError) {
       setError(signInError.message);
       throw signInError;
-    }
-    if (data.session) {
-      await fetch(`${env.VITE_API_URL}/api/email/welcome`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
     }
   };
 
