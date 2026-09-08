@@ -1,0 +1,28 @@
+{
+  "name": "riverside-community-hub",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "npm run build --workspace=@riverside/shared && concurrently \"npm run dev --workspace=@riverside/backend\" \"npm run dev --workspace=@riverside/frontend\"",
+    "rundev": "npm run dev",
+    "build": "npm run build --workspace=@riverside/shared && npm run build --workspace=@riverside/backend && npm run build --workspace=@riverside/frontend",
+    "typecheck": "npm run build --workspace=@riverside/shared && npm run typecheck --workspaces --if-present",
+    "lint": "eslint . --ext .ts,.tsx",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "validate": "npm run format:check && npm run lint && npm run typecheck && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "^22.10.1",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.14",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.16.0"
+  }
+}
