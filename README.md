@@ -17,6 +17,8 @@ npm run build
 npm run dev
 ```
 
+Replace the Supabase placeholders in both `.env` files with the project URL and anon key. Keep `SUPABASE_SERVICE_ROLE_KEY` and `API_MAIL_KEY` in the backend `.env` only. Apply the versioned database migrations with `supabase db push` before using signup, profile, or email routes.
+
 The frontend runs at `http://localhost:5173` and the API runs at `http://localhost:4000`. Check API readiness at `http://localhost:4000/api/health`.
 
 The combined development command is also available as `npm run rundev`.
@@ -30,4 +32,6 @@ Run focused checks with `npm run typecheck`, `npm run lint`, or the full `npm ru
 - `packages/shared`: shared TypeScript types and Zod schemas
 - `docs`: initial product and API planning documents
 
-Supabase configuration is represented by environment placeholders only. No Supabase client or database connection is active yet.
+Supabase clients, Auth session handling, protected profile routes, versioned SQL migrations, seeds, RLS policies, and Promailer email delivery are included. See [docs/schema.md](docs/schema.md), [docs/permissions.md](docs/permissions.md), [docs/authentication-flow.md](docs/authentication-flow.md), and [docs/email-delivery.md](docs/email-delivery.md).
+
+For development test users, follow [docs/test-accounts.md](docs/test-accounts.md) and run [supabase/seed/test-roles.sql](supabase/seed/test-roles.sql) after creating the three Auth accounts.

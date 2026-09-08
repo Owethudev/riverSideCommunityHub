@@ -2,11 +2,16 @@ import cors from 'cors';
 import express from 'express';
 import { healthResponseSchema } from '@riverside/shared';
 import { env } from './config/env.js';
+import { profileRouter } from './routes/profile.js';
+import { emailRouter } from './routes/email.js';
 
 export const app = express();
 
 app.use(cors({ origin: env.CORS_ORIGIN }));
 app.use(express.json());
+
+app.use('/api/profile', profileRouter);
+app.use('/api/email', emailRouter);
 
 app.get('/api/health', (_request, response) => {
   const payload = healthResponseSchema.parse({
