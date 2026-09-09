@@ -1,104 +1,69 @@
-# Riverside Community Hub
 
-Full-stack TypeScript community-centre platform.
 
-## Production architecture
+Riverside Community Hub is a membership, facility booking, events, and donation platform for a community centre.
 
-- Frontend: React, Vite, React Router, Tailwind on Vercel.
-- Backend: Node.js, Express, TypeScript on Render.
-- Data/auth/storage: Supabase Auth, Postgres, RLS, and Storage.
-- Email: Promailer, called only by the backend.
-- Shared contracts: `packages/shared`.
+## Deployed Site
 
-See [docs/architecture.md](docs/architecture.md) for the trust boundaries and service diagram.
+[Open Riverside Community Hub](https://river-side-community-hub-frontend.vercel.app/)
 
-## Local development
+## Features
 
-Requirements: Node.js 20+ and npm 10+.
+### Public visitors
 
-```powershell
-npm install
-npm run typecheck
-npm run build
-npm run dev
-```
+- Browse community facilities and equipment.
+- View facility details, capacity, approval requirements, and availability.
+- View upcoming community events.
+- Register interest in the donation drive with a pledged amount.
+- Create a Riverside Community Hub account.
 
-The frontend runs at `http://localhost:5173`; the API runs at `http://localhost:4000`. The API health check is `http://localhost:4000/api/health`.
+### Members
 
-Local environment files are intentionally ignored by Git. Create them locally from your own secure configuration. Do not commit `.env`, `.env.*`, or service credentials.
+- Sign up and log in securely with Supabase Auth.
+- Manage a member profile.
+- View membership status and expiry warnings.
+- Request room and equipment bookings.
+- Add a cellphone number and notes to booking requests.
+- Check booking availability before submitting a request.
+- View booking history and cancel pending requests.
+- Receive booking status notifications.
 
-## Supabase setup
+### Staff and administrators
 
-Apply all migrations in timestamp order:
+- Review pending booking requests.
+- Approve or reject bookings.
+- View booking history and member cellphone details.
+- Search and filter the member directory.
+- Use pagination across large lists.
+- Create community events with optional poster images.
+- Minimize the event creation form while working.
+- Delete posted community events.
 
-```text
-supabase/migrations/20260908120000_initial_schema.sql
-supabase/migrations/20260908121000_seed_resources.sql
-supabase/migrations/20260908122000_email_delivery.sql
-supabase/migrations/20260908130000_booking_workflows.sql
-supabase/migrations/20260908140000_staff_booking_audit.sql
-supabase/migrations/20260908141000_admin_lists.sql
-supabase/migrations/20260908142000_community_events.sql
-supabase/migrations/20260908143000_event_posters_storage.sql
-```
+### Administrator features
 
-Configure Supabase Auth URL settings before testing production email redirects. See [docs/deployment-verification.md](docs/deployment-verification.md).
+- Export booking history as a CSV file.
+- View member and donation-interest records.
+- Access all staff capabilities through role-protected routes.
 
-## Deployment
+## How It Works
 
-### Vercel frontend
+1. A visitor opens the deployed site and browses facilities, equipment, and community events.
+2. The visitor creates an account through Supabase Auth.
+3. The member selects a resource, chooses a date and time, and submits a booking request with their cellphone number.
+4. The system checks membership status, opening hours, booking duration, and conflicts before saving the request.
+5. Staff review pending requests and approve or reject them.
+6. Members receive status updates and can view their booking history.
+7. Donation-drive interest submissions are saved with the donor email and pledged amount, and staff are notified.
+8. Staff and administrators manage community events from the dashboard.
+9. Administrators can export booking history for reporting.
 
-Create a Vercel project connected to this repository:
+## Access To Staff And Admin Features
 
-- Root Directory: repository root (`.`)
-- Framework: Vite
-- Build Command: `npm run build`
-- Output Directory: `dist`
-- Install Command: `npm install`
-- Add `VITE_API_URL`, `VITE_SUPABASE_URL`, and `VITE_SUPABASE_ANON_KEY`.
-- `vercel.json` builds the shared package before the frontend and provides the SPA rewrite for React Router refreshes.
+The public site is available at:
 
-### Render backend
+[https://river-side-community-hub-frontend.vercel.app/](https://river-side-community-hub-frontend.vercel.app/)
 
-Create a Render Web Service from this repository. `render.yaml` contains the build, start, health-check, and environment-variable blueprint:
+If you need staff or administrator privileges for testing, please contact:
 
-- Build: `npm ci && npm run build --workspace=@riverside/shared && npm run build --workspace=@riverside/backend`
-- Start: `npm run start --workspace=@riverside/backend`
-- Health: `/api/health`
+**jezileowethu@gmail.com**
 
-Set the backend variables from [docs/environment-reference.md](docs/environment-reference.md). Set `CORS_ORIGIN` to the exact Vercel production URL, including `https://` and without a trailing slash. Multiple origins may be comma-separated.
-
-## Manual settings checklist
-
-You must manually change these values for your deployment:
-
-1. Vercel: set the three `VITE_*` variables to the production API and Supabase values.
-2. Render: set Supabase URL/keys, service-role key, Promailer key, sender, and the Vercel origin.
-3. Supabase Authentication > URL Configuration: set Site URL to the Vercel URL and add the Vercel URL plus `/login` to Redirect URLs. Add your custom domain if applicable.
-4. Supabase Auth email settings: configure a production email provider and verification templates.
-5. Supabase Storage: confirm the `event-posters` bucket is public-read and its upload policy is present.
-6. Promailer: verify the sender/domain and place only the API key in Render.
-7. Apply all SQL migrations before enabling production traffic.
-
-## Security confirmation
-
-No server secrets are used by frontend code. `SUPABASE_SERVICE_ROLE_KEY` and `API_MAIL_KEY` are backend-only. The frontend receives only the Supabase anon key, which is intended for browser use, and the public API URL. Environment files are ignored by Git. Run a repository secret scan before pushing:
-
-```powershell
-git grep -n -I -E "SUPABASE_SERVICE_ROLE_KEY=|API_MAIL_KEY=|eyJhbGciOiJIUzI1Ni"
-```
-
-An empty result is expected for tracked source files.
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Environment reference](docs/environment-reference.md)
-- [API reference](docs/api-reference.md)
-- [Staff handover](docs/staff-handover.md)
-- [Deployment verification](docs/deployment-verification.md)
-- [Client demo walkthrough](docs/client-demo.md)
-- [Authentication flow](docs/authentication-flow.md)
-- [Permissions](docs/permissions.md)
-- [Booking rules](docs/booking-rules.md)
-- [Email delivery](docs/email-delivery.md)
+Please do not share passwords, service keys, or other private credentials by email.
