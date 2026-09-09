@@ -448,10 +448,35 @@ function StaffBookingQueue() {
 }
 
 function StaffDashboard() {
-  return <Page title="Staff dashboard" description="Manage community events and staff activity."><EventForm /></Page>;
+  return <Page title="Staff dashboard" description="Manage community events and staff activity."><EventManagement /></Page>;
 }
 
-function EventForm() {
+function EventManagement() {
+  const { session } = useAuth();
+  const [events, setEvents] = useState<CommunityEvent[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const load = () => {
+    void fetch(`${env.VITE_API_URL}/api/events`)
+      .then((response) => readApiResponse<{ items?: CommunityEvent[] }>(response))
+      .then((result) => setEvents(result.items ?? []))
+      .catch((reason: Error) => setError(reason.message));
+  };
+  useEffect(load, []);
+  const remove = async (eventId: string) => {
+    if (!session) return;
+    setError(null);
+    const response = await fetch(`${env.VITE_API_URL}/api/events/${eventId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${session.access_token}` } });
+    if (!response.ok) {
+      const body = await response.json() as { error?: string };
+      setError(body.error ?? 'Unable to delete community event.');
+      return;
+    }
+    setEvents((current) => current.filter((event) => event.id !== eventId));
+  };
+  return <div className="space-y-6"><EventForm onPosted={load} />{error && <ErrorState message={error} />}<section><h2>Posted events</h2>{events.length === 0 ? <EmptyState message="No upcoming community events have been posted." /> : <div className="space-y-3">{events.map((event) => <article className="rounded border border-slate-200 bg-white p-4" key={event.id}><div className="flex items-start justify-between gap-4"><div><h3>{event.title}</h3><p>{new Date(event.starts_at).toLocaleString()} · {event.venue}</p></div><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void remove(event.id)}>Delete event</button></div></article>)}</div>}</section></div>;
+}
+
+function EventForm({ onPosted }: { onPosted?: () => void }) {
   const { session } = useAuth();
   const [title, setTitle] = useState('');
   const [posterFile, setPosterFile] = useState<File | null>(null);
@@ -461,6 +486,7 @@ function EventForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!session || submitting) return;
@@ -484,11 +510,13 @@ function EventForm() {
     const body = await response.json() as { error?: string };
     if (!response.ok) { setError(body.error ?? 'Unable to create event.'); return; }
     setTitle(''); setPosterFile(null); setStartsAt(''); setEndsAt(''); setVenue(''); setMessage('Event posted successfully.');
+    onPosted?.();
     } finally {
       setSubmitting(false);
     }
   };
-  return <FormCard title="Post a community event" onSubmit={submit}><label className="block"><span className="font-medium">Event name</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Poster image</span><input accept="image/*" type="file" onChange={(event) => setPosterFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends (optional)</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Venue</span><input required value={venue} onChange={(event) => setVenue(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{error && <ErrorState message={error} />}{message && <p role="status" className="text-green-700">{message}</p>}<SubmitButton busy={submitting}>Post event</SubmitButton></FormCard>;
+  if (minimized) return <section className="border-2 border-black bg-white p-4"><div className="flex items-center justify-between gap-4"><h2>Post a community event</h2><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => setMinimized(false)}>Restore form</button></div></section>;
+  return <FormCard title="Post a community event" onSubmit={submit}><div className="flex justify-end"><button className="text-sm underline" type="button" onClick={() => setMinimized(true)}>Minimize form</button></div><label className="block"><span className="font-medium">Event name</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Poster image</span><input accept="image/*" type="file" onChange={(event) => setPosterFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends (optional)</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Venue</span><input required value={venue} onChange={(event) => setVenue(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{error && <ErrorState message={error} />}{message && <p role="status" className="text-green-700">{message}</p>}<SubmitButton busy={submitting}>Post event</SubmitButton></FormCard>;
 }
 
 function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }) { return <button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit" disabled={busy} aria-busy={busy}>{busy && <span className="button-spinner" aria-hidden="true" />}{busy ? 'Submitting...' : children}</button>; }

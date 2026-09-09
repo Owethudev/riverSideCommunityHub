@@ -45,3 +45,15 @@ eventsRouter.post('/', requireAuth, requireRole('staff', 'admin'), async (reques
   }
   response.status(201).json(data);
 });
+
+eventsRouter.delete('/:eventId', requireAuth, requireRole('staff', 'admin'), async (request, response) => {
+  const { error } = await supabaseAdmin
+    .from('community_events')
+    .delete()
+    .eq('id', request.params.eventId);
+  if (error) {
+    response.status(500).json({ error: 'Unable to delete community event' });
+    return;
+  }
+  response.status(204).send();
+});
