@@ -35,6 +35,7 @@ export const bookingSchema = z.object({
   starts_at: z.string().datetime(),
   ends_at: z.string().datetime(),
   status: bookingStatusSchema,
+  cellphone: z.string().nullable().optional(),
   notes: z.string().nullable(),
   cancellation_reason: z.string().nullable().optional(),
   resource: resourceSchema.optional(),
@@ -45,6 +46,7 @@ export const createBookingSchema = z.object({
   resource_id: z.string().uuid(),
   starts_at: z.string().datetime(),
   ends_at: z.string().datetime(),
+  cellphone: z.string().trim().min(7).max(25).regex(/^[+0-9()\s-]+$/, 'Enter a valid cellphone number.'),
   notes: z.string().trim().max(1000).nullable().optional(),
 });
 export type CreateBooking = z.infer<typeof createBookingSchema>;

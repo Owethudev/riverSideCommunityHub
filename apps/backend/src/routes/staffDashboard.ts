@@ -17,7 +17,7 @@ staffDashboardRouter.get('/booking-decisions', async (request, response) => {
   const to = from + pageSize - 1;
   const { data, error, count } = await supabaseAdmin
     .from('bookings')
-    .select('id, member_id, resource_id, starts_at, ends_at, status, reviewed_by, reviewed_at, profiles!bookings_member_id_fkey(full_name), reviewer:profiles!bookings_reviewed_by_fkey(full_name), resources(name)', { count: 'exact' })
+    .select('id, member_id, resource_id, starts_at, ends_at, status, cellphone, reviewed_by, reviewed_at, profiles!bookings_member_id_fkey(full_name), reviewer:profiles!bookings_reviewed_by_fkey(full_name), resources(name)', { count: 'exact' })
     .in('status', ['approved', 'declined'])
     .not('reviewed_by', 'is', null)
     .order('reviewed_at', { ascending: false })
