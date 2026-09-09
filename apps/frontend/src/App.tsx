@@ -25,13 +25,13 @@ const navigation: Record<PageKind, { label: string; path: string }[]> = {
   ],
   staff: [
     { label: 'Dashboard', path: '/staff/dashboard' },
-    { label: 'Booking Requests', path: '/staff/booking-requests' },
+    { label: 'Bookings', path: '/staff/booking-requests' },
   ],
 };
 
 const adminNavigation = [
   { label: 'Dashboard', path: '/staff/dashboard' },
-  { label: 'Booking Requests', path: '/staff/booking-requests' },
+  { label: 'Bookings', path: '/staff/booking-requests' },
   { label: 'Members', path: '/staff/members' },
   { label: 'Donations', path: '/staff/donations' },
 ];
@@ -167,9 +167,12 @@ function DonationDrive() {
   const [email, setEmail] = useState('');
   const [amount, setAmount] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     setError(null);
     try {
       const response = await fetch(`${env.VITE_API_URL}/api/donations/interest`, {
@@ -181,10 +184,12 @@ function DonationDrive() {
       setSubmitted(true);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to submit your interest.');
+    } finally {
+      setSubmitting(false);
     }
   };
   return <Page title="Donation Drive" description="Support local initiatives by contributing requested goods or funds.">
-    {submitted ? <p role="status" className="rounded border border-green-200 bg-green-50 p-6 text-green-800">Thank you. Your interest has been sent to the Riverside Community Hub team.</p> : <FormCard title="Register your interest" onSubmit={submit}><label className="block"><span className="font-medium">Email address</span><input required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label><label className="block"><span className="font-medium">Pledged amount (R)</span><input required min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="number" inputMode="decimal" /></label>{error && <ErrorState message={error} />}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit interest</button></FormCard>}
+    {submitted ? <p role="status" className="rounded border border-green-200 bg-green-50 p-6 text-green-800">Thank you. Your interest has been sent to the Riverside Community Hub team.</p> : <FormCard title="Register your interest" onSubmit={submit}><label className="block"><span className="font-medium">Email address</span><input required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label><label className="block"><span className="font-medium">Pledged amount (R)</span><input required min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="number" inputMode="decimal" /></label>{error && <ErrorState message={error} />}<SubmitButton busy={submitting}>Submit interest</SubmitButton></FormCard>}
   </Page>;
 }
 
@@ -195,8 +200,11 @@ function AuthPage({ signUp = false }: { signUp?: boolean }) {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       if (signUp) {
         const result = await auth.signUp(email, password, fullName);
@@ -205,7 +213,9 @@ function AuthPage({ signUp = false }: { signUp?: boolean }) {
         await auth.signIn(email, password);
         navigate('/member/dashboard');
       }
-    } catch { /* AuthContext exposes the user-facing error. */ }
+    } catch { /* AuthContext exposes the user-facing error. */ } finally {
+      setSubmitting(false);
+    }
   };
   return <Page title={signUp ? 'Create an account' : 'Log in'} {...(signUp ? { description: 'Join Riverside Community Hub to manage your community activity.' } : {})}>
     <FormCard title={signUp ? 'Account details' : 'Your details'} onSubmit={submit}>
@@ -214,7 +224,7 @@ function AuthPage({ signUp = false }: { signUp?: boolean }) {
       <label className="block"><span className="font-medium">Password</span><input required minLength={8} value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="password" /></label>
       {auth.error && <ErrorState message={auth.error} />}
       {message && <p role="status" className="text-green-700">{message}</p>}
-      <button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">{signUp ? 'Create account' : 'Log in'}</button>
+      <SubmitButton busy={submitting}>{signUp ? 'Create account' : 'Log in'}</SubmitButton>
     </FormCard>
   </Page>;
 }
@@ -241,6 +251,7 @@ function Profile() {
   const [fullName, setFullName] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!session) return;
     void fetch(`${env.VITE_API_URL}/api/profile`, { headers: { Authorization: `Bearer ${session.access_token}` } })
@@ -250,20 +261,25 @@ function Profile() {
   }, [session]);
   const save = async (event: FormEvent) => {
     event.preventDefault();
-    if (!session) return;
-    const response = await fetch(`${env.VITE_API_URL}/api/profile`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ full_name: fullName }) });
-    if (!response.ok) {
-      const body = await response.json() as { error?: string };
-      setError(body.error ?? 'Unable to save profile.');
-      setMessage(null);
-      return;
+    if (!session || saving) return;
+    setSaving(true);
+    try {
+      const response = await fetch(`${env.VITE_API_URL}/api/profile`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ full_name: fullName }) });
+      if (!response.ok) {
+        const body = await response.json() as { error?: string };
+        setError(body.error ?? 'Unable to save profile.');
+        setMessage(null);
+        return;
+      }
+      setError(null);
+      setMessage('Profile saved.');
+    } finally {
+      setSaving(false);
     }
-    setError(null);
-    setMessage('Profile saved.');
   };
   if (loading) return <LoadingState />;
   if (!user) return <Navigate to="/login" replace />;
-  return <Page title="My profile" description="Review and update your account details."><FormCard title="Profile details" onSubmit={save}>{error && <ErrorState message={error} />}<label className="block"><span className="font-medium">Full name</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="text" /></label>{message && <p role="status">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Save changes</button></FormCard></Page>;
+  return <Page title="My profile" description="Review and update your account details."><FormCard title="Profile details" onSubmit={save}>{error && <ErrorState message={error} />}<label className="block"><span className="font-medium">Full name</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="text" /></label>{message && <p role="status">{message}</p>}<SubmitButton busy={saving}>Save changes</SubmitButton></FormCard></Page>;
 }
 function Bookings({ create = false }: { create?: boolean }) {
   const { loading, user, session } = useAuth();
@@ -272,11 +288,13 @@ function Bookings({ create = false }: { create?: boolean }) {
   const [resourceId, setResourceId] = useState('');
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
+  const [cellphone, setCellphone] = useState('');
   const [notes, setNotes] = useState('');
   const [availability, setAvailability] = useState<Array<{ starts_at: string; ends_at: string; status: string }>>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formMinimized, setFormMinimized] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const load = () => {
     if (!session) return;
     const headers = { Authorization: `Bearer ${session.access_token}` };
@@ -310,7 +328,8 @@ function Bookings({ create = false }: { create?: boolean }) {
   }, [session, resourceId, startsAt, endsAt]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!session) return;
+    if (!session || submitting) return;
+    setSubmitting(true);
     setError(null);
     setMessage(null);
     try {
@@ -336,30 +355,33 @@ function Bookings({ create = false }: { create?: boolean }) {
         setError('Choose a time during opening hours: Monday-Friday 06:00-21:00, Saturday 08:00-18:00, or Sunday 09:00-15:00.');
         return;
       }
-      const response = await fetch(`${env.VITE_API_URL}/api/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ resource_id: resourceId, starts_at: start.toISOString(), ends_at: end.toISOString(), notes: notes || null }) });
+      const response = await fetch(`${env.VITE_API_URL}/api/bookings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ resource_id: resourceId, starts_at: start.toISOString(), ends_at: end.toISOString(), cellphone, notes: notes || null }) });
       const body = await response.json() as { error?: string };
       if (!response.ok) {
         setError(body.error ?? 'Unable to create booking');
         return;
       }
       setMessage('Booking request submitted.');
+      setCellphone('');
       setNotes('');
       load();
     } catch {
       setError('Unable to reach the booking service. Please try again.');
+    } finally {
+      setSubmitting(false);
     }
   };
   const cancel = async (id: string) => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/bookings/${id}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to cancel booking'); return; } setMessage('Booking cancelled.'); load(); };
   if (loading) return <LoadingState />;
   if (!user) return <Navigate to="/login" replace />;
   if (!create) return <Page title="My bookings" description="Review your current and past bookings."><div className="flex justify-end"><NavLink className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" to="/member/bookings/new">Create a booking</NavLink></div>{error && <ErrorState message={error} />}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
-  return <Page title="My bookings" description="Request a resource and manage your pending bookings.">{error && <ErrorState message={error} />}{formMinimized ? <button className="rounded border border-slate-400 px-4 py-2" type="button" onClick={() => setFormMinimized(false)}>Restore booking form</button> : <FormCard title="Request a booking" onSubmit={submit}><div className="flex justify-end"><button className="text-sm underline" type="button" onClick={() => setFormMinimized(true)}>Minimize form</button></div><label className="block"><span className="font-medium">Resource</span><select required value={resourceId} onChange={(event) => setResourceId(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2"><option value="">Select a resource</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{availability.length > 0 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">This resource has an active booking in the selected range.</p>}{availability.length === 0 && resourceId && startsAt && endsAt && <p className="rounded border border-green-200 bg-green-50 p-3 text-green-800">No active booking is shown for this range.</p>}<label className="block"><span className="font-medium">Notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit request</button></FormCard>}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
+  return <Page title="My bookings" description="Request a resource and manage your pending bookings.">{error && <ErrorState message={error} />}{formMinimized ? <button className="rounded border border-slate-400 px-4 py-2" type="button" onClick={() => setFormMinimized(false)}>Restore booking form</button> : <FormCard title="Request a booking" onSubmit={submit}><div className="flex justify-end"><button className="text-sm underline" type="button" onClick={() => setFormMinimized(true)}>Minimize form</button></div><label className="block"><span className="font-medium">Resource</span><select required value={resourceId} onChange={(event) => setResourceId(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2"><option value="">Select a resource</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Cellphone number</span><input required type="tel" inputMode="tel" autoComplete="tel" value={cellphone} onChange={(event) => setCellphone(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" placeholder="e.g. +27 82 123 4567" /></label>{availability.length > 0 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">This resource has an active booking in the selected range.</p>}{availability.length === 0 && resourceId && startsAt && endsAt && <p className="rounded border border-green-200 bg-green-50 p-3 text-green-800">No active booking is shown for this range.</p>}<label className="block"><span className="font-medium">Notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{message && <p role="status" className="text-green-700">{message}</p>}<SubmitButton busy={submitting}>Submit request</SubmitButton></FormCard>}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
 }
 
 const staffPages: Record<string, { title: string; description: string; message: string }> = {
   '/member/bookings/new': { title: 'Create booking', description: 'Request a resource booking.', message: '' },
   '/staff/dashboard': { title: 'Staff and admin dashboard', description: 'An overview of hub activity and tasks.', message: 'Dashboard metrics will appear here.' },
-  '/staff/booking-requests': { title: 'Booking requests', description: 'Review and manage member booking requests.', message: 'There are no booking requests to review.' },
+  '/staff/booking-requests': { title: 'Bookings', description: 'Review requests and booking history.', message: 'There are no bookings to review.' },
   '/staff/members': { title: 'Members', description: 'View and manage registered community members.', message: 'Member records will appear here.' },
   '/staff/donations': { title: 'Donations', description: 'Track donation drive activity.', message: 'Donation records will appear here.' },
 };
@@ -383,31 +405,43 @@ function StaffPage({ path }: { path: string }) {
 }
 
 function StaffBookingQueue() {
-  const { session } = useAuth();
+  const { session, role } = useAuth();
   const [items, setItems] = useState<Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }>>([]);
+  const [history, setHistory] = useState<Array<Booking & { reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>>([]);
   const [error, setError] = useState<string | null>(null);
-  const load = () => { if (!session) return; void fetch(`${env.VITE_API_URL}/api/staff/bookings`, { headers: { Authorization: `Bearer ${session.access_token}` } }).then((response) => readApiResponse<{ items?: Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }> }>(response)).then((result) => setItems(result.items ?? [])).catch((reason: Error) => { setItems([]); setError(reason.message); }); };
+  const load = () => {
+    if (!session) return;
+    const headers = { Authorization: `Bearer ${session.access_token}` };
+    void Promise.all([
+      fetch(`${env.VITE_API_URL}/api/staff/bookings`, { headers }).then((response) => readApiResponse<{ items?: Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }> }>(response)),
+      fetch(`${env.VITE_API_URL}/api/staff/dashboard/booking-decisions?page=1&page_size=50`, { headers }).then((response) => readApiResponse<{ items?: Array<Booking & { reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }> }>(response)),
+    ])
+      .then(([pendingResult, historyResult]) => { setItems(pendingResult.items ?? []); setHistory(historyResult.items ?? []); setError(null); })
+      .catch((reason: Error) => { setItems([]); setHistory([]); setError(reason.message); });
+  };
   useEffect(load, [session]);
   const decide = async (id: string, status: 'approved' | 'declined') => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/staff/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ status }) }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to update booking'); return; } load(); };
-  return <Page title="Booking requests" description="Approve or reject pending member booking requests.">{error && <ErrorState message={error} />}{items.length === 0 ? <EmptyState message="There are no pending booking requests." /> : <div className="space-y-3">{items.map((item) => <article className="rounded border border-slate-200 bg-white p-4" key={item.id}><h2 className="font-semibold">{item.resources?.name ?? 'Resource'}</h2><p>Requested by {item.profiles?.full_name ?? 'Member'}</p><p>{new Date(item.starts_at).toLocaleString()} to {new Date(item.ends_at).toLocaleString()}</p><div className="mt-3 flex gap-2"><button className="rounded bg-green-700 px-3 py-1 font-semibold text-white" type="button" onClick={() => void decide(item.id, 'approved')}>Approve</button><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void decide(item.id, 'declined')}>Reject</button></div></article>)}</div>}</Page>;
+  const downloadHistory = async () => {
+    if (!session) return;
+    try {
+      const response = await fetch(`${env.VITE_API_URL}/api/staff/bookings/export.csv`, { headers: { Authorization: `Bearer ${session.access_token}` } });
+      if (!response.ok) throw new Error('Unable to export booking history.');
+      const url = window.URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'riverside-booking-history.csv';
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Unable to export booking history.');
+    }
+  };
+  return <Page title="Bookings" description="Review requests and booking history.">{error && <ErrorState message={error} />}<section><div className="flex items-center justify-between gap-4"><h2>Pending requests</h2>{role === 'admin' && <button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="button" onClick={() => void downloadHistory()}>Export booking history</button>}</div>{items.length === 0 ? <EmptyState message="There are no pending booking requests." /> : <div className="space-y-3">{items.map((item) => <article className="rounded border border-slate-200 bg-white p-4" key={item.id}><h3 className="font-semibold">{item.resources?.name ?? 'Resource'}</h3><p>Requested by {item.profiles?.full_name ?? 'Member'}</p><p>Cellphone: {item.cellphone ?? 'Not provided'}</p><p>{new Date(item.starts_at).toLocaleString()} to {new Date(item.ends_at).toLocaleString()}</p><div className="mt-3 flex gap-2"><button className="rounded bg-green-700 px-3 py-1 font-semibold text-white" type="button" onClick={() => void decide(item.id, 'approved')}>Approve</button><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void decide(item.id, 'declined')}>Reject</button></div></article>)}</div>}</section><section><h2>Booking history</h2>{history.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <div className="space-y-3">{history.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Cellphone: {item.cellphone ?? 'Not provided'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div>}</section></Page>;
 }
 
 function StaffDashboard() {
-  const { session } = useAuth();
-  const [items, setItems] = useState<Array<Booking & { reviewed_by?: string; reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>>([]);
-  const [showMore, setShowMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const load = (pageSize: number) => {
-    if (!session) return;
-    void fetch(`${env.VITE_API_URL}/api/staff/dashboard/booking-decisions?page=1&page_size=${pageSize}`, { headers: { Authorization: `Bearer ${session.access_token}` } })
-      .then((response) => readApiResponse<{ items?: Array<Booking & { reviewed_by?: string; reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>; has_more?: boolean }>(response))
-      .then((result) => { setItems(result.items ?? []); setHasMore(result.has_more ?? false); })
-      .catch((reason: Error) => { setItems([]); setError(reason.message); });
-  };
-  useEffect(() => load(5), [session]);
-  const toggleMore = () => { const next = !showMore; setShowMore(next); load(next ? 50 : 5); };
-  return <Page title="Staff dashboard" description="Recent booking decisions made by staff and administrators.">{error && <ErrorState message={error} />}<EventForm /><section className="rounded border border-slate-200 bg-white p-5"><h2 className="text-xl font-semibold">Booking decisions</h2>{items.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <div className="mt-4 space-y-3">{items.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div>}{(hasMore || showMore) && <button className="mt-4 rounded border border-slate-400 px-3 py-1" type="button" onClick={toggleMore}>{showMore ? 'Show less' : 'Show more'}</button>}</section></Page>;
+  return <Page title="Staff dashboard" description="Manage community events and staff activity."><EventForm /></Page>;
 }
 
 function EventForm() {
@@ -419,9 +453,12 @@ function EventForm() {
   const [venue, setVenue] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!session) return;
+    if (!session || submitting) return;
+    setSubmitting(true);
+    try {
     setError(null);
     setMessage(null);
     let posterUrl: string | null = null;
@@ -440,10 +477,14 @@ function EventForm() {
     const body = await response.json() as { error?: string };
     if (!response.ok) { setError(body.error ?? 'Unable to create event.'); return; }
     setTitle(''); setPosterFile(null); setStartsAt(''); setEndsAt(''); setVenue(''); setMessage('Event posted successfully.');
+    } finally {
+      setSubmitting(false);
+    }
   };
-  return <FormCard title="Post a community event" onSubmit={submit}><label className="block"><span className="font-medium">Event name</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Poster image</span><input accept="image/*" type="file" onChange={(event) => setPosterFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends (optional)</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Venue</span><input required value={venue} onChange={(event) => setVenue(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{error && <ErrorState message={error} />}{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Post event</button></FormCard>;
+  return <FormCard title="Post a community event" onSubmit={submit}><label className="block"><span className="font-medium">Event name</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Poster image</span><input accept="image/*" type="file" onChange={(event) => setPosterFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends (optional)</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Venue</span><input required value={venue} onChange={(event) => setVenue(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{error && <ErrorState message={error} />}{message && <p role="status" className="text-green-700">{message}</p>}<SubmitButton busy={submitting}>Post event</SubmitButton></FormCard>;
 }
 
+function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }) { return <button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit" disabled={busy} aria-busy={busy}>{busy && <span className="button-spinner" aria-hidden="true" />}{busy ? 'Submitting...' : children}</button>; }
 function FormCard({ title, children, onSubmit }: { title: string; children: ReactNode; onSubmit?: (event: FormEvent) => void }) { return <form className="form-card max-w-lg space-y-4" onSubmit={onSubmit ?? ((event) => event.preventDefault())}><span className="section-label">FORM / ACTION</span><h2>{title}</h2>{children}</form>; }
 function LoadingState() { return <p role="status" className="state state--loading">Loading...</p>; }
 function EmptyState({ message }: { message: string }) { return <p className="state state--empty"><span className="state__mark">—</span>{message}</p>; }

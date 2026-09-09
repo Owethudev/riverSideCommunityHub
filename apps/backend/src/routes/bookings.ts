@@ -22,7 +22,7 @@ bookingsRouter.get('/', async (request, response) => {
   const to = from + pageSize - 1;
   const { data, error, count } = await supabaseAdmin
     .from('bookings')
-    .select('id, member_id, resource_id, starts_at, ends_at, status, notes, cancellation_reason, resources(id, name, kind, category, description, capacity, approval_required, is_active)', { count: 'exact' })
+    .select('id, member_id, resource_id, starts_at, ends_at, status, cellphone, notes, cancellation_reason, resources(id, name, kind, category, description, capacity, approval_required, is_active)', { count: 'exact' })
     .eq('member_id', request.userId)
     .order('starts_at', { ascending: false })
     .range(from, to);
@@ -87,10 +87,11 @@ bookingsRouter.post('/', async (request, response) => {
       resource_id: parsed.data.resource_id,
       starts_at: parsed.data.starts_at,
       ends_at: parsed.data.ends_at,
+      cellphone: parsed.data.cellphone,
       notes: parsed.data.notes ?? null,
       status: resource.approval_required ? 'pending' : 'approved',
     })
-    .select('id, member_id, resource_id, starts_at, ends_at, status, notes, cancellation_reason')
+    .select('id, member_id, resource_id, starts_at, ends_at, status, cellphone, notes, cancellation_reason')
     .single();
 
   if (error) {
