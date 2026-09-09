@@ -68,6 +68,7 @@ function Layout() {
           <NavigationGroup title="Member" items={navigation.member} onNavigate={() => setMenuOpen(false)} />
           {canAccessStaffNavigation && <NavigationGroup title="Staff and admin" items={navigation.staff} onNavigate={() => setMenuOpen(false)} />}
           {role === 'admin' && <NavigationGroup title="Admin" items={adminNavigation} onNavigate={() => setMenuOpen(false)} />}
+          {user && <section className="nav-group" aria-labelledby="account-action-navigation"><h2 id="account-action-navigation" className="nav-group__title">Account</h2><button className="nav-link w-full text-left" type="button" onClick={() => { setMenuOpen(false); void signOut(); }}>Log out</button></section>}
         </aside>
         <main id="main-content" className="main-content" onClick={() => menuOpen && setMenuOpen(false)}>
           <Outlet />
