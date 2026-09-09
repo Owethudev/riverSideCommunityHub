@@ -165,6 +165,7 @@ const facilityImages: Record<string, string> = {
 
 function DonationDrive() {
   const [email, setEmail] = useState('');
+  const [amount, setAmount] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submit = async (event: FormEvent) => {
@@ -174,7 +175,7 @@ function DonationDrive() {
       const response = await fetch(`${env.VITE_API_URL}/api/donations/interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, amount }),
       });
       await readApiResponse<{ submitted: boolean }>(response);
       setSubmitted(true);
@@ -183,7 +184,7 @@ function DonationDrive() {
     }
   };
   return <Page title="Donation Drive" description="Support local initiatives by contributing requested goods or funds.">
-    {submitted ? <p role="status" className="rounded border border-green-200 bg-green-50 p-6 text-green-800">Thank you. Your interest has been sent to the Riverside Community Hub team.</p> : <FormCard title="Register your interest" onSubmit={submit}><label className="block"><span className="font-medium">Email address</span><input required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label>{error && <ErrorState message={error} />}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit interest</button></FormCard>}
+    {submitted ? <p role="status" className="rounded border border-green-200 bg-green-50 p-6 text-green-800">Thank you. Your interest has been sent to the Riverside Community Hub team.</p> : <FormCard title="Register your interest" onSubmit={submit}><label className="block"><span className="font-medium">Email address</span><input required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label><label className="block"><span className="font-medium">Pledged amount (R)</span><input required min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="number" inputMode="decimal" /></label>{error && <ErrorState message={error} />}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Submit interest</button></FormCard>}
   </Page>;
 }
 

@@ -61,6 +61,12 @@ export const paginationQuerySchema = z.object({
 });
 export type PaginationQuery = z.infer<typeof paginationQuerySchema>;
 
+export const adminMembersQuerySchema = paginationQuerySchema.extend({
+  search: z.string().trim().max(120).default(''),
+  role: userRoleSchema.optional(),
+});
+export type AdminMembersQuery = z.infer<typeof adminMembersQuerySchema>;
+
 export const paginatedResponseSchema = <T extends z.ZodTypeAny>(itemSchema: T) => z.object({
   items: z.array(itemSchema),
   page: z.number().int().positive(),
@@ -102,6 +108,7 @@ export type AuthCredentials = z.infer<typeof authCredentialsSchema>;
 
 export const donationInterestSchema = z.object({
   email: z.string().email(),
+  amount: z.coerce.number().finite().positive().max(1000000000),
 });
 export type DonationInterest = z.infer<typeof donationInterestSchema>;
 

@@ -123,10 +123,11 @@ export function donationReceivedEmail(campaignName: string): Pick<SendEmailInput
   };
 }
 
-export function donationInterestEmail(email: string): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {
+export function donationInterestEmail(email: string, amount: number): Pick<SendEmailInput, 'subject' | 'html' | 'text'> {
+  const formattedAmount = amount.toFixed(2);
   return {
     subject: 'New donation drive interest',
-    html: emailLayout('Donations / Staff action', 'New donation drive interest', emailText(`<strong>${escapeHtml(email)}</strong> has registered interest in the Riverside Community Hub donation drive.`)),
-    text: `New donation drive interest\n\n${email} has registered interest in the Riverside Community Hub donation drive.`,
+    html: emailLayout('Donations / Staff action', 'New donation drive interest', `${emailText(`<strong>${escapeHtml(email)}</strong> has registered interest in the Riverside Community Hub donation drive.`)}${emailDetail(`Pledged amount: <strong>R${formattedAmount}</strong>`)}`),
+    text: `New donation drive interest\n\n${email} has registered interest in the Riverside Community Hub donation drive.\nPledged amount: R${formattedAmount}`,
   };
 }
