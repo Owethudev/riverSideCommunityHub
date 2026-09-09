@@ -47,8 +47,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .nav-group__title, .section-label { display: block; color: var(--muted); font-size: 10px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 .nav-group__title { margin: 0 0 8px; padding-bottom: 8px; border-bottom: 2px solid var(--ink); }
 .nav-link { display: flex; min-height: 44px; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(17,17,17,.14); padding: 9px 7px; color: var(--ink); font-size: 13px; font-weight: 800; text-decoration: none; }
-.nav-link::after { content: '↗'; opacity: 0; transform: translateX(-4px); transition: opacity .15s, transform .15s; }
-.nav-link:hover::after, .nav-link--active::after { opacity: 1; transform: translateX(0); }
 .nav-link--active { background: var(--signal); }
 .main-content { min-width: 0; }
 .page-stack { display: grid; gap: 30px; }
