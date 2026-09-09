@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { paginationQuerySchema } from '@riverside/shared';
+import { adminMembersQuerySchema, paginationQuerySchema } from '@riverside/shared';
 import { supabaseAdmin } from '../config/supabase.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 
@@ -7,17 +7,20 @@ export const adminRouter = Router();
 adminRouter.use(requireAuth, requireRole('admin'));
 
 adminRouter.get('/members', async (request, response) => {
-  const parsed = paginationQuerySchema.safeParse(request.query);
+  const parsed = adminMembersQuerySchema.safeParse(request.query);
   if (!parsed.success) {
     response.status(400).json({ error: 'Invalid pagination', details: parsed.error.flatten() });
     return;
   }
-  const { page, page_size: pageSize } = parsed.data;
+  const { page, page_size: pageSize, search, role } = parsed.data;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
-  const { data, error, count } = await supabaseAdmin
+  let membersQuery = supabaseAdmin
     .from('profiles')
-    .select('id, full_name, role, membership_started_at, membership_expires_at, created_at', { count: 'exact' })
+    .select('id, full_name, role, membership_started_at, membership_expires_at, created_at', { count: 'exact' });
+  if (search) membersQuery = membersQuery.ilike('full_name', `%${search}%`);
+  if (role) membersQuery = membersQuery.eq('role', role);
+  const { data, error, count } = await membersQuery
     .order('created_at', { ascending: false })
     .range(from, to);
 

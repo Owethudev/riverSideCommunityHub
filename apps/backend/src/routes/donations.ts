@@ -18,10 +18,20 @@ donationsRouter.post('/interest', async (request, response) => {
       response.status(503).json({ error: 'Donation interest storage is not configured yet.' });
       return;
     }
+    const { error: donationError } = await supabaseAdmin.from('donations').insert({
+      donor_email: parsed.data.email,
+      amount: parsed.data.amount,
+      status: 'pledged',
+    });
+    if (donationError) {
+      console.error('Donation pledge storage failed', donationError);
+      response.status(503).json({ error: 'Donation interest storage is not configured yet.' });
+      return;
+    }
     const staffEmails = await getRoleEmails(['staff', 'admin']);
     if (staffEmails.length > 0) {
       try {
-        await sendToMany(staffEmails, donationInterestEmail(parsed.data.email));
+        await sendToMany(staffEmails, donationInterestEmail(parsed.data.email, parsed.data.amount));
       } catch (emailError) {
         console.error('Donation interest email delivery failed', emailError);
       }
