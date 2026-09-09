@@ -88,6 +88,11 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .page-stack th { background: var(--ink) !important; color: var(--white); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .page-stack td, .page-stack th { border-color: rgba(17,17,17,.2) !important; }
 .page-stack article { border-color: var(--ink) !important; }
+.pagination { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 14px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.pagination div { display: flex; gap: 8px; }
+.pagination button { min-height: 44px; border: 2px solid var(--ink); padding: 8px 12px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+.pagination button:not(:disabled):hover { background: var(--signal); }
+.pagination button:disabled { cursor: not-allowed; opacity: .4; }
 
 :focus-visible { outline: 3px solid var(--signal); outline-offset: 3px; }
 
@@ -103,6 +108,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .page-heading h1 { font-size: clamp(42px, 14vw, 64px); }
   .page-stack .grid { grid-template-columns: 1fr !important; }
   .page-stack .flex { flex-wrap: wrap; }
+  .pagination { align-items: stretch; flex-direction: column; }
+  .pagination div { display: grid; grid-template-columns: 1fr 1fr; }
   .page-stack .overflow-x-auto { overflow: visible; }
   .page-stack table, .page-stack thead, .page-stack tbody, .page-stack tr, .page-stack th, .page-stack td { display: block; }
   .page-stack thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

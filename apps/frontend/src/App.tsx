@@ -284,6 +284,8 @@ function Profile() {
 function Bookings({ create = false }: { create?: boolean }) {
   const { loading, user, session } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingPage, setBookingPage] = useState(1);
+  const [bookingPagination, setBookingPagination] = useState({ pageSize: 20, total: 0, hasMore: false });
   const [resources, setResources] = useState<Resource[]>([]);
   const [resourceId, setResourceId] = useState('');
   const [startsAt, setStartsAt] = useState('');
@@ -295,19 +297,20 @@ function Bookings({ create = false }: { create?: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [formMinimized, setFormMinimized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const load = () => {
+  const load = (page = bookingPage) => {
     if (!session) return;
     const headers = { Authorization: `Bearer ${session.access_token}` };
     void Promise.all([
-      fetch(`${env.VITE_API_URL}/api/bookings`, { headers }),
+      fetch(`${env.VITE_API_URL}/api/bookings?page=${page}&page_size=20`, { headers }),
       fetch(`${env.VITE_API_URL}/api/resources`, { headers }),
     ])
       .then(async ([bookingResponse, resourceResponse]) => {
-        const bookingResult = await bookingResponse.json() as { items?: Booking[]; error?: string };
+        const bookingResult = await bookingResponse.json() as { items?: Booking[]; page_size?: number; total?: number; has_more?: boolean; error?: string };
         const resourceResult = await resourceResponse.json() as { items?: Resource[]; error?: string };
         if (!bookingResponse.ok) throw new Error(bookingResult.error ?? 'Unable to load bookings');
         if (!resourceResponse.ok) throw new Error(resourceResult.error ?? 'Unable to load resources');
         setBookings(bookingResult.items ?? []);
+        setBookingPagination({ pageSize: bookingResult.page_size ?? 20, total: bookingResult.total ?? 0, hasMore: bookingResult.has_more ?? false });
         setResources(resourceResult.items ?? []);
       })
       .catch((reason: Error) => {
@@ -316,7 +319,7 @@ function Bookings({ create = false }: { create?: boolean }) {
         setError(reason.message);
       });
   };
-  useEffect(load, [session]);
+  useEffect(() => load(bookingPage), [session, bookingPage]);
   useEffect(() => {
     if (!session || !resourceId || !startsAt || !endsAt) { setAvailability([]); return; }
     const start = new Date(startsAt).toISOString();
@@ -374,7 +377,7 @@ function Bookings({ create = false }: { create?: boolean }) {
   const cancel = async (id: string) => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/bookings/${id}/cancel`, { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` } }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to cancel booking'); return; } setMessage('Booking cancelled.'); load(); };
   if (loading) return <LoadingState />;
   if (!user) return <Navigate to="/login" replace />;
-  if (!create) return <Page title="My bookings" description="Review your current and past bookings."><div className="flex justify-end"><NavLink className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" to="/member/bookings/new">Create a booking</NavLink></div>{error && <ErrorState message={error} />}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
+  if (!create) return <Page title="My bookings" description="Review your current and past bookings."><div className="flex justify-end"><NavLink className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" to="/member/bookings/new">Create a booking</NavLink></div>{error && <ErrorState message={error} />}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <><div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div><PaginationControls page={bookingPage} {...bookingPagination} onPageChange={setBookingPage} /></>}</section></Page>;
   return <Page title="My bookings" description="Request a resource and manage your pending bookings.">{error && <ErrorState message={error} />}{formMinimized ? <button className="rounded border border-slate-400 px-4 py-2" type="button" onClick={() => setFormMinimized(false)}>Restore booking form</button> : <FormCard title="Request a booking" onSubmit={submit}><div className="flex justify-end"><button className="text-sm underline" type="button" onClick={() => setFormMinimized(true)}>Minimize form</button></div><label className="block"><span className="font-medium">Resource</span><select required value={resourceId} onChange={(event) => setResourceId(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2"><option value="">Select a resource</option>{resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name}</option>)}</select></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends</span><input required type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Cellphone number</span><input required type="tel" inputMode="tel" autoComplete="tel" value={cellphone} onChange={(event) => setCellphone(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" placeholder="e.g. +27 82 123 4567" /></label>{availability.length > 0 && <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">This resource has an active booking in the selected range.</p>}{availability.length === 0 && resourceId && startsAt && endsAt && <p className="rounded border border-green-200 bg-green-50 p-3 text-green-800">No active booking is shown for this range.</p>}<label className="block"><span className="font-medium">Notes</span><textarea value={notes} onChange={(event) => setNotes(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{message && <p role="status" className="text-green-700">{message}</p>}<SubmitButton busy={submitting}>Submit request</SubmitButton></FormCard>}<section><h2 className="text-xl font-semibold">Booking history</h2>{bookings.length === 0 ? <EmptyState message="You have no bookings." /> : <div className="mt-3 space-y-3">{bookings.map((booking) => <article className="rounded border border-slate-200 bg-white p-4" key={booking.id}><h3 className="font-semibold">{booking.resource?.name ?? 'Resource'}</h3><p>{new Date(booking.starts_at).toLocaleString()} to {new Date(booking.ends_at).toLocaleString()}</p><p className="text-sm text-slate-600">Status: {booking.status}</p>{booking.status === 'pending' && <button className="mt-3 rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void cancel(booking.id)}>Cancel request</button>}</article>)}</div>}</section></Page>;
 }
 
@@ -408,18 +411,22 @@ function StaffBookingQueue() {
   const { session, role } = useAuth();
   const [items, setItems] = useState<Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }>>([]);
   const [history, setHistory] = useState<Array<Booking & { reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>>([]);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [pendingPagination, setPendingPagination] = useState({ pageSize: 20, total: 0, hasMore: false });
+  const [historyPagination, setHistoryPagination] = useState({ pageSize: 20, total: 0, hasMore: false });
   const [error, setError] = useState<string | null>(null);
   const load = () => {
     if (!session) return;
     const headers = { Authorization: `Bearer ${session.access_token}` };
     void Promise.all([
-      fetch(`${env.VITE_API_URL}/api/staff/bookings`, { headers }).then((response) => readApiResponse<{ items?: Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }> }>(response)),
-      fetch(`${env.VITE_API_URL}/api/staff/dashboard/booking-decisions?page=1&page_size=50`, { headers }).then((response) => readApiResponse<{ items?: Array<Booking & { reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }> }>(response)),
+      fetch(`${env.VITE_API_URL}/api/staff/bookings?page=${pendingPage}&page_size=20`, { headers }).then((response) => readApiResponse<{ items?: Array<Booking & { profiles?: { full_name: string | null }; resources?: Resource }>; page_size?: number; total?: number; has_more?: boolean }>(response)),
+      fetch(`${env.VITE_API_URL}/api/staff/dashboard/booking-decisions?page=${historyPage}&page_size=20`, { headers }).then((response) => readApiResponse<{ items?: Array<Booking & { reviewed_at?: string; profiles?: { full_name: string | null }; reviewer?: { full_name: string | null }; resources?: { name: string } }>; page_size?: number; total?: number; has_more?: boolean }>(response)),
     ])
-      .then(([pendingResult, historyResult]) => { setItems(pendingResult.items ?? []); setHistory(historyResult.items ?? []); setError(null); })
+      .then(([pendingResult, historyResult]) => { setItems(pendingResult.items ?? []); setHistory(historyResult.items ?? []); setPendingPagination({ pageSize: pendingResult.page_size ?? 20, total: pendingResult.total ?? 0, hasMore: pendingResult.has_more ?? false }); setHistoryPagination({ pageSize: historyResult.page_size ?? 20, total: historyResult.total ?? 0, hasMore: historyResult.has_more ?? false }); setError(null); })
       .catch((reason: Error) => { setItems([]); setHistory([]); setError(reason.message); });
   };
-  useEffect(load, [session]);
+  useEffect(load, [session, pendingPage, historyPage]);
   const decide = async (id: string, status: 'approved' | 'declined') => { if (!session) return; const response = await fetch(`${env.VITE_API_URL}/api/staff/bookings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ status }) }); if (!response.ok) { const body = await response.json() as { error?: string }; setError(body.error ?? 'Unable to update booking'); return; } load(); };
   const downloadHistory = async () => {
     if (!session) return;
@@ -437,7 +444,7 @@ function StaffBookingQueue() {
       setError(reason instanceof Error ? reason.message : 'Unable to export booking history.');
     }
   };
-  return <Page title="Bookings" description="Review requests and booking history.">{error && <ErrorState message={error} />}<section><div className="flex items-center justify-between gap-4"><h2>Pending requests</h2>{role === 'admin' && <button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="button" onClick={() => void downloadHistory()}>Export booking history</button>}</div>{items.length === 0 ? <EmptyState message="There are no pending booking requests." /> : <div className="space-y-3">{items.map((item) => <article className="rounded border border-slate-200 bg-white p-4" key={item.id}><h3 className="font-semibold">{item.resources?.name ?? 'Resource'}</h3><p>Requested by {item.profiles?.full_name ?? 'Member'}</p><p>Cellphone: {item.cellphone ?? 'Not provided'}</p><p>{new Date(item.starts_at).toLocaleString()} to {new Date(item.ends_at).toLocaleString()}</p><div className="mt-3 flex gap-2"><button className="rounded bg-green-700 px-3 py-1 font-semibold text-white" type="button" onClick={() => void decide(item.id, 'approved')}>Approve</button><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void decide(item.id, 'declined')}>Reject</button></div></article>)}</div>}</section><section><h2>Booking history</h2>{history.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <div className="space-y-3">{history.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Cellphone: {item.cellphone ?? 'Not provided'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div>}</section></Page>;
+  return <Page title="Bookings" description="Review requests and booking history.">{error && <ErrorState message={error} />}<section><div className="flex items-center justify-between gap-4"><h2>Pending requests</h2>{role === 'admin' && <button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="button" onClick={() => void downloadHistory()}>Export booking history</button>}</div>{items.length === 0 ? <EmptyState message="There are no pending booking requests." /> : <><div className="space-y-3">{items.map((item) => <article className="rounded border border-slate-200 bg-white p-4" key={item.id}><h3 className="font-semibold">{item.resources?.name ?? 'Resource'}</h3><p>Requested by {item.profiles?.full_name ?? 'Member'}</p><p>Cellphone: {item.cellphone ?? 'Not provided'}</p><p>{new Date(item.starts_at).toLocaleString()} to {new Date(item.ends_at).toLocaleString()}</p><div className="mt-3 flex gap-2"><button className="rounded bg-green-700 px-3 py-1 font-semibold text-white" type="button" onClick={() => void decide(item.id, 'approved')}>Approve</button><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => void decide(item.id, 'declined')}>Reject</button></div></article>)}</div><PaginationControls page={pendingPage} {...pendingPagination} onPageChange={setPendingPage} /></>}</section><section><h2>Booking history</h2>{history.length === 0 ? <EmptyState message="No booking decisions have been recorded." /> : <><div className="space-y-3">{history.map((item) => <article className="border-b border-slate-200 pb-3" key={item.id}><p className="font-semibold">{item.resources?.name ?? 'Resource'}: {item.status}</p><p className="text-sm text-slate-600">Member: {item.profiles?.full_name ?? 'Member'} · Cellphone: {item.cellphone ?? 'Not provided'} · Reviewed by: {item.reviewer?.full_name ?? 'Staff member'}</p>{item.reviewed_at && <p className="text-sm text-slate-500">{new Date(item.reviewed_at).toLocaleString()}</p>}</article>)}</div><PaginationControls page={historyPage} {...historyPagination} onPageChange={setHistoryPage} /></>}</section></Page>;
 }
 
 function StaffDashboard() {
@@ -489,6 +496,7 @@ function FormCard({ title, children, onSubmit }: { title: string; children: Reac
 function LoadingState() { return <p role="status" className="state state--loading">Loading...</p>; }
 function EmptyState({ message }: { message: string }) { return <p className="state state--empty"><span className="state__mark">—</span>{message}</p>; }
 function ErrorState({ message }: { message: string }) { return <p role="alert" className="state state--error"><span className="state__mark">!</span>{message}</p>; }
+function PaginationControls({ page, pageSize, total, hasMore, onPageChange }: { page: number; pageSize: number; total: number; hasMore: boolean; onPageChange: (page: number) => void }) { return <nav className="pagination" aria-label="Pagination"><span>Page {page} of {Math.max(1, Math.ceil(total / pageSize))}</span><div><button type="button" disabled={page === 1} onClick={() => onPageChange(page - 1)}>Previous</button><button type="button" disabled={!hasMore} onClick={() => onPageChange(page + 1)}>Next</button></div></nav>; }
 
 export function App() {
   return <Routes><Route element={<Layout />}><Route index element={<Home />} /><Route path="facilities" element={<Facilities />} /><Route path="donation-drive" element={<DonationDrive />} /><Route path="login" element={<AuthPage />} /><Route path="sign-up" element={<AuthPage signUp />} /><Route path="member/dashboard" element={<MemberDashboard />} /><Route path="member/profile" element={<Profile />} /><Route path="member/bookings" element={<Bookings />} />{Object.keys(staffPages).map((path) => <Route key={path} path={path.replace(/^/, '').replace(/^\//, '')} element={<StaffPage path={path} />} />)}<Route path="*" element={<Navigate to="/" replace />} /></Route></Routes>;
