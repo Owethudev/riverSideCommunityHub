@@ -38,27 +38,32 @@ const adminNavigation = [
 
 function Layout() {
   const { user, role, signOut } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
   const canAccessStaffNavigation = role === 'staff';
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
-          <NavLink className="text-lg font-bold text-slate-900" to="/">
-            Riverside Community Hub
+    <div className="app-shell min-h-screen bg-slate-50">
+      <header className="site-header">
+        <div className="site-header__inner">
+          <NavLink className="brand-mark" to="/" onClick={() => setMenuOpen(false)}>
+            <span className="brand-mark__number">RH</span>
+            <span>Riverside<br />Community Hub</span>
           </NavLink>
-          <nav aria-label="Account navigation" className="flex gap-3 text-sm">
-            {user ? <button className="underline" type="button" onClick={() => void signOut()}>Log out</button> : <><NavLink className="underline" to="/login">Log in</NavLink><NavLink className="underline" to="/sign-up">Sign up</NavLink></>}
+          <button className="menu-toggle" type="button" aria-expanded={menuOpen} aria-controls="main-navigation" onClick={() => setMenuOpen((open) => !open)}>
+            <span>{menuOpen ? 'Close' : 'Menu'}</span><span aria-hidden="true" className="menu-toggle__icon">{menuOpen ? '×' : '≡'}</span>
+          </button>
+          <nav aria-label="Account navigation" className="account-nav">
+            {user ? <button className="text-button" type="button" onClick={() => void signOut()}>Log out</button> : <><NavLink className="text-button" to="/login">Log in</NavLink><NavLink className="button button--small" to="/sign-up">Sign up</NavLink></>}
           </nav>
         </div>
       </header>
-      <div className="mx-auto grid max-w-6xl gap-8 px-6 py-8 md:grid-cols-[220px_1fr]">
-        <aside aria-label="Main navigation" className="space-y-6">
-          <NavigationGroup title="Public" items={navigation.public} />
-          <NavigationGroup title="Member" items={navigation.member} />
-          {canAccessStaffNavigation && <NavigationGroup title="Staff and admin" items={navigation.staff} />}
-          {role === 'admin' && <NavigationGroup title="Admin" items={adminNavigation} />}
+      <div className="app-layout">
+        <aside id="main-navigation" aria-label="Main navigation" className={`main-nav ${menuOpen ? 'main-nav--open' : ''}`}>
+          <NavigationGroup title="Public" items={navigation.public} onNavigate={() => setMenuOpen(false)} />
+          <NavigationGroup title="Member" items={navigation.member} onNavigate={() => setMenuOpen(false)} />
+          {canAccessStaffNavigation && <NavigationGroup title="Staff and admin" items={navigation.staff} onNavigate={() => setMenuOpen(false)} />}
+          {role === 'admin' && <NavigationGroup title="Admin" items={adminNavigation} onNavigate={() => setMenuOpen(false)} />}
         </aside>
-        <main id="main-content" className="min-w-0">
+        <main id="main-content" className="main-content" onClick={() => menuOpen && setMenuOpen(false)}>
           <Outlet />
         </main>
       </div>
@@ -66,10 +71,10 @@ function Layout() {
   );
 }
 
-function NavigationGroup({ title, items }: { title: string; items: { label: string; path: string }[] }) {
+function NavigationGroup({ title, items, onNavigate }: { title: string; items: { label: string; path: string }[]; onNavigate: () => void }) {
   return (
-    <section aria-labelledby={`${title}-navigation`}>
-      <h2 id={`${title}-navigation`} className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+    <section className="nav-group" aria-labelledby={`${title}-navigation`}>
+      <h2 id={`${title}-navigation`} className="nav-group__title">
         {title}
       </h2>
       <ul className="space-y-1">
@@ -77,10 +82,11 @@ function NavigationGroup({ title, items }: { title: string; items: { label: stri
           <li key={item.path}>
             <NavLink
               className={({ isActive }) =>
-                `block rounded px-3 py-2 text-sm ${isActive ? 'bg-blue-100 font-semibold text-blue-900' : 'text-slate-700 hover:bg-slate-100'}`
+                `nav-link ${isActive ? 'nav-link--active' : ''}`
               }
               to={item.path}
               end={item.path === '/'}
+              onClick={onNavigate}
             >
               {item.label}
             </NavLink>
@@ -93,10 +99,10 @@ function NavigationGroup({ title, items }: { title: string; items: { label: stri
 
 function Page({ title, description, children }: { title: string; description?: string; children?: ReactNode }) {
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-bold text-slate-900">{title}</h1>
-        {description && <p className="mt-2 max-w-2xl text-slate-600">{description}</p>}
+    <div className="page-stack">
+      <header className="page-heading">
+        <h1>{title}</h1>
+        {description && <p>{description}</p>}
       </header>
       {children}
     </div>
@@ -193,7 +199,7 @@ function AuthPage({ signUp = false }: { signUp?: boolean }) {
       }
     } catch { /* AuthContext exposes the user-facing error. */ }
   };
-  return <Page title={signUp ? 'Create an account' : 'Log in'} description={signUp ? 'Join Riverside Community Hub to manage your community activity.' : 'Access your Riverside Community Hub account.'}>
+  return <Page title={signUp ? 'Create an account' : 'Log in'} {...(signUp ? { description: 'Join Riverside Community Hub to manage your community activity.' } : {})}>
     <FormCard title={signUp ? 'Account details' : 'Your details'} onSubmit={submit}>
       {signUp && <label className="block"><span className="font-medium">Full name</span><input required value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="text" /></label>}
       <label className="block"><span className="font-medium">Email address</span><input required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" type="email" /></label>
@@ -430,10 +436,10 @@ function EventForm() {
   return <FormCard title="Post a community event" onSubmit={submit}><label className="block"><span className="font-medium">Event name</span><input required value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Poster image</span><input accept="image/*" type="file" onChange={(event) => setPosterFile(event.target.files?.[0] ?? null)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Starts</span><input required type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Ends (optional)</span><input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label><label className="block"><span className="font-medium">Venue</span><input required value={venue} onChange={(event) => setVenue(event.target.value)} className="mt-1 block w-full rounded border border-slate-300 p-2" /></label>{error && <ErrorState message={error} />}{message && <p role="status" className="text-green-700">{message}</p>}<button className="rounded bg-blue-700 px-4 py-2 font-semibold text-white" type="submit">Post event</button></FormCard>;
 }
 
-function FormCard({ title, children, onSubmit }: { title: string; children: ReactNode; onSubmit?: (event: FormEvent) => void }) { return <form className="max-w-lg space-y-4 rounded border border-slate-200 bg-white p-6" onSubmit={onSubmit ?? ((event) => event.preventDefault())}><h2 className="text-xl font-semibold">{title}</h2>{children}</form>; }
-function LoadingState() { return <p role="status" className="rounded border border-slate-200 bg-white p-6 text-slate-600">Loading...</p>; }
-function EmptyState({ message }: { message: string }) { return <p className="rounded border border-dashed border-slate-300 bg-white p-6 text-slate-600">{message}</p>; }
-function ErrorState({ message }: { message: string }) { return <p role="alert" className="rounded border border-red-200 bg-red-50 p-6 text-red-800">{message}</p>; }
+function FormCard({ title, children, onSubmit }: { title: string; children: ReactNode; onSubmit?: (event: FormEvent) => void }) { return <form className="form-card max-w-lg space-y-4" onSubmit={onSubmit ?? ((event) => event.preventDefault())}><span className="section-label">FORM / ACTION</span><h2>{title}</h2>{children}</form>; }
+function LoadingState() { return <p role="status" className="state state--loading">Loading...</p>; }
+function EmptyState({ message }: { message: string }) { return <p className="state state--empty"><span className="state__mark">—</span>{message}</p>; }
+function ErrorState({ message }: { message: string }) { return <p role="alert" className="state state--error"><span className="state__mark">!</span>{message}</p>; }
 
 export function App() {
   return <Routes><Route element={<Layout />}><Route index element={<Home />} /><Route path="facilities" element={<Facilities />} /><Route path="donation-drive" element={<DonationDrive />} /><Route path="login" element={<AuthPage />} /><Route path="sign-up" element={<AuthPage signUp />} /><Route path="member/dashboard" element={<MemberDashboard />} /><Route path="member/profile" element={<Profile />} /><Route path="member/bookings" element={<Bookings />} />{Object.keys(staffPages).map((path) => <Route key={path} path={path.replace(/^/, '').replace(/^\//, '')} element={<StaffPage path={path} />} />)}<Route path="*" element={<Navigate to="/" replace />} /></Route></Routes>;
