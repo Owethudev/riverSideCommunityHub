@@ -124,6 +124,7 @@ function Home() {
 function Facilities() {
   const { session } = useAuth();
   const [resources, setResources] = useState<Resource[]>([]);
+  const [selectedImage, setSelectedImage] = useState<{ name: string; src: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -136,9 +137,18 @@ function Facilities() {
   }, [session]);
   return <Page title="Facilities and equipment" description="Browse bookable rooms and equipment.">
     {loading && <LoadingState />}{error && <ErrorState message={error} />}{!loading && !error && resources.length === 0 && <EmptyState message="No resources are currently available." />}
-    <div className="grid gap-4 md:grid-cols-2">{resources.map((resource) => <section className="rounded border border-slate-200 bg-white p-5" key={resource.id}><h2 className="text-xl font-semibold">{resource.name}</h2><p className="mt-1 text-sm text-slate-500">{resource.kind} · Capacity {resource.capacity}</p><p className="mt-3 text-slate-600">{resource.description}</p><p className="mt-3 text-sm">{resource.approval_required ? 'Staff approval required' : 'Usually approved automatically'}</p></section>)}</div>
+    <div className="grid gap-4 md:grid-cols-2">{resources.map((resource) => { const image = facilityImages[resource.name]; return <section className="rounded border border-slate-200 bg-white p-5" key={resource.id}><h2 className="text-xl font-semibold">{resource.name}</h2><p className="mt-1 text-sm text-slate-500">{resource.kind} · Capacity {resource.capacity}</p><p className="mt-3 text-slate-600">{resource.description}</p><p className="mt-3 text-sm">{resource.approval_required ? 'Staff approval required' : 'Usually approved automatically'}</p>{image && <button className="mt-4 rounded border border-slate-400 px-3 py-2" type="button" onClick={() => setSelectedImage({ name: resource.name, src: image })}>View image</button>}</section>; })}</div>
+    {selectedImage && <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/60 p-6" role="dialog" aria-modal="true" aria-label={`${selectedImage.name} image`}><div className="max-h-full max-w-3xl rounded bg-white p-4"><div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold">{selectedImage.name}</h2><button className="rounded border border-slate-400 px-3 py-1" type="button" onClick={() => setSelectedImage(null)}>Close</button></div><img className="mt-4 max-h-[70vh] w-full object-contain" src={selectedImage.src} alt={selectedImage.name} /></div></div>}
   </Page>;
 }
+
+const facilityImages: Record<string, string> = {
+  'Riverside Meeting Room': '/images/meetingRoom.jpg',
+  'Community Hall': '/images/communityHall.jpg',
+  'Training Room': '/images/trainingRoom.jpg',
+  'Audio-Visual Equipment': '/images/audioVisualEquipment.jpg',
+  'Fitness Equipment': '/images/fitnessEquipment.jpg',
+};
 
 function DonationDrive() {
   const [email, setEmail] = useState('');
