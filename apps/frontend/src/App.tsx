@@ -36,6 +36,11 @@ const adminNavigation = [
   { label: 'Donations', path: '/staff/donations' },
 ];
 
+const accountNavigation = [
+  { label: 'Log in', path: '/login' },
+  { label: 'Sign up', path: '/sign-up' },
+];
+
 function Layout() {
   const { user, role, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -59,6 +64,7 @@ function Layout() {
       <div className="app-layout">
         <aside id="main-navigation" aria-label="Main navigation" className={`main-nav ${menuOpen ? 'main-nav--open' : ''}`}>
           <NavigationGroup title="Public" items={navigation.public} onNavigate={() => setMenuOpen(false)} />
+          {!user && <NavigationGroup title="Account" items={accountNavigation} onNavigate={() => setMenuOpen(false)} />}
           <NavigationGroup title="Member" items={navigation.member} onNavigate={() => setMenuOpen(false)} />
           {canAccessStaffNavigation && <NavigationGroup title="Staff and admin" items={navigation.staff} onNavigate={() => setMenuOpen(false)} />}
           {role === 'admin' && <NavigationGroup title="Admin" items={adminNavigation} onNavigate={() => setMenuOpen(false)} />}
